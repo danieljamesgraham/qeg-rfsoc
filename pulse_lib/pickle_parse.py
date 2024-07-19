@@ -157,7 +157,7 @@ class PickleParse():
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
 
-    def generate_asm(self, prog, delta_phis, reps=1):
+    def generate_asm(self, prog, delta_phis={}, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -197,8 +197,9 @@ class PickleParse():
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
             amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
-            phase = prog.deg2reg(delta_phis[ch_cfg[ch]["freqs"][i]][ch_index] 
-                                 + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+            phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+            # phase = prog.deg2reg(delta_phis[ch_cfg[ch]["freqs"][i]][ch_index] 
+            #                      + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
 
             # Program DAC channel with parameters and then play pulse
             prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
