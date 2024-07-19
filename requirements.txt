@@ -1,0 +1,5 @@
+numpy == 1.21.5
+matplotlib == 3.5.1
+qick == 0.2.267
+Pyro4 == 4.82
+jupyter == 1.0.0
