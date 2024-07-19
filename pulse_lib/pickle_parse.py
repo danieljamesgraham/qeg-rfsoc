@@ -1,4 +1,5 @@
 # TODO: Convert all user-input parameters into specific data-type
+# TODO: Add alternative if delta_phis not specified
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
