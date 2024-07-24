@@ -33,8 +33,9 @@ class PickleParse():
                 self.ch_cfg[ch]["ch_index"] = {'A': 1, 'B': 0}.get(ch_ref)
 
             # Assign specified or default gains and delays for channel
-            self.ch_cfg[ch]["gain"] = gains.get(ch, DEFAULT_GAIN)
             self.ch_cfg[ch]["delay"] = delays.get(ch, DEFAULT_DELAY)
+            if ch_type == "DAC":
+                self.ch_cfg[ch]["gain"] = gains.get(ch, DEFAULT_GAIN)
             
             # Create lists of pulse parameters
             self.ch_cfg[ch]["lengths"] = []
@@ -96,7 +97,7 @@ class PickleParse():
             if not isinstance(gain, (int, float)):
                 raise TypeError(f"{ch} gain '{gain}' not int or float")
 
-            if abs(gain) > 30000:
+            if abs(gain) > 32767:
                 raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 30000")
 
     def check_delays(self, delays):
@@ -198,9 +199,9 @@ class PickleParse():
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
             amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
-            phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
-            # phase = prog.deg2reg(delta_phis[ch_cfg[ch]["freqs"][i]][ch_index] 
-            #                      + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+            # phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+            phase = prog.deg2reg(delta_phis[ch_cfg[ch]["freqs"][i]][ch_index] 
+                                 + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
 
             # Program DAC channel with parameters and then play pulse
             prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
