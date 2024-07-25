@@ -21,7 +21,7 @@ class CalibratePhase(AveragerProgram):
 
         self.trigger(pins=[0], t=0) # send a pulse on pmod0_0, for scope trigger
         for ch in [0,1]:
-            self.set_pulse_registers(ch=ch, style="const", freq=freq, phase=self.deg2reg(phases[ch]), gain=gains[ch], mode="periodic", length= self.us2cycles(10, gen_ch=ch))
+            self.set_pulse_registers(ch=ch, style="const", freq=freq, phase=self.deg2reg(phases[ch]), gain=gains[ch], mode="periodic", length=self.us2cycles(10, gen_ch=ch))
 
         self.synci(200)  # give processor some time to configure pulses
     
