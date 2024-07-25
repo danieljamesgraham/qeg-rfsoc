@@ -40,6 +40,10 @@ class CalibratePhase(AveragerProgram):
         # Average to improve calibration.
         xavg = np.mean(x)
 
+        # print(x)
+        # print(xavg)
+
         # Calculate calibration phase.
         fi = np.remainder(np.angle(xavg,deg=True)+360,360)
-        return [fi, np.abs(xavg), np.std(x)]
+        # return [fi, np.abs(xavg), np.std(x)]
+        return fi
