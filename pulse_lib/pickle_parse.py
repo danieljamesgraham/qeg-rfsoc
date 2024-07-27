@@ -1,5 +1,12 @@
+# FIXME: If very short sequences are repeated, there are random gaps between each repeat
+# FIXME: Timing error if 5x2000 unit pulses are played beside each other
+
 # TODO: Convert all user-input parameters into specific data-type
 # TODO: Add alternative if delta_phis not specified
+# TODO: Warn user, but permit no delta phis to be specified
+# TODO: Change user specified frequency to MHz (from GHz)
+# TODO: Check maximum pulse length
+# TODO: Check which parameters are optional
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
