@@ -18,4 +18,4 @@ def interpolate_phase(freq, delta_phis):
 
     delta_phi = (delta_phi_below + (((freq - freq_below) / (freq_above - freq_below)) * (delta_phi_above - delta_phi_below))) % 360
 
-    return delta_phi
+    return [delta_phi, 0]

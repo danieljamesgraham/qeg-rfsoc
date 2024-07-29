@@ -8,6 +8,8 @@
 # TODO: Check maximum pulse length
 # TODO: Check which parameters are optional
 
+from pulse_lib.interpolate_phase import interpolate_phase
+
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
 
@@ -206,8 +208,7 @@ class PickleParse():
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
             amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
-            # phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
-            phase = prog.deg2reg(delta_phis[ch_cfg[ch]["freqs"][i]][ch_index] 
+            phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"], delta_phis)[ch_index]
                                  + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
 
             # Program DAC channel with parameters and then play pulse
