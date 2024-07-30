@@ -16,7 +16,7 @@ DEFAULT_GAIN = 10000
 
 class PulseProgram():
 
-    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}):
+    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
         """
         Constructor method.
         Creates and prints dictionary containing all specified pulse sequence 
@@ -65,7 +65,10 @@ class PulseProgram():
                         self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
                         self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
                         # TODO: Temporarily changed phase input to radians
-                        self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi) # DAC phase [deg]
+                        if iq_mix == True and ch_ref == 'B':
+                            self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi - 90) # DAC phase [deg]
+                        else:
+                            self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi) # DAC phase [deg]
                 time += params[0]
 
             self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
