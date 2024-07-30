@@ -13,7 +13,7 @@ from pulse_lib.interpolate_phase import interpolate_phase
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
 
-class PickleParse():
+class PulseProgram():
 
     def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}):
         """
@@ -68,8 +68,6 @@ class PickleParse():
 
             self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
             self.ch_cfg[ch]["duration"] = time/1e3 # End time of sequence [us]
-
-            self.check_lengths(ch) # Check that lengths of pulse parameter lists match
 
             for key, value in self.ch_cfg[ch].items():
                 print(f"{key}: {value}")
@@ -139,19 +137,6 @@ class PickleParse():
             if ((len(params) > 2) and (self.ch_cfg[ch]["ch_type"] == "DIG")
                 or (len(params) > 4) and (self.ch_cfg[ch]["ch_type"] == "DAC")):
                 raise Exception(f"Specified too many sequence parameters for pulse in channel {ch}")
-
-    def check_lengths(self, ch):
-        """
-        Check pulse parameter lists are equal in length.
-        """
-
-        # TODO: include lengths, times, amps, freqs, phases in check
-
-        times = self.ch_cfg[ch]["times"]
-        num_pulses = self.ch_cfg[ch]["num_pulses"]
-        if ((len(times) != num_pulses) or
-            ((self.ch_cfg[ch]["ch_type"] == "DAC") and (len(self.ch_cfg[ch]["freqs"]) != num_pulses))):
-            raise Exception("Number of elements in pulse parameter lists are not equal")
 
     def get_end_time(self):
         """
