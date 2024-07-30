@@ -9,6 +9,7 @@
 # TODO: Check which parameters are optional
 
 from pulse_lib.interpolate_phase import interpolate_phase
+import numpy as np
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
@@ -58,12 +59,13 @@ class PulseProgram():
             for params in seq_params:
                 self.check_params(ch, params)
                 if bool(params[1]) == True:
-                    self.ch_cfg[ch]["times"].append(time/1e3) # Trigger time [us]
-                    self.ch_cfg[ch]["lengths"].append(params[0]/1e3) # Pulse durations [us]
+                    self.ch_cfg[ch]["times"].append(float(time/1e3)) # Trigger time [us]
+                    self.ch_cfg[ch]["lengths"].append(float(params[0]/1e3)) # Pulse durations [us]
                     if ch_type == "DAC":
-                        self.ch_cfg[ch]["amps"].append(params[1]) # DAC amplitude
-                        self.ch_cfg[ch]["freqs"].append(params[2]*1e3) # DAC frequency [Hz]
-                        self.ch_cfg[ch]["phases"].append(params[3]) # DAC phase [deg]
+                        self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
+                        self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
+                        # TODO: Temporarily changed phase input to radians
+                        self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi) # DAC phase [deg]
                 time += params[0]
 
             self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
@@ -123,20 +125,23 @@ class PulseProgram():
         pulse in array.
         """
 
-        # TODO: Times, amps, frequencies and phases must be floats or ints
-        # TODO: Make sure to raise error if too many parameters specified for DIG
         # TODO: times : float/int, +ve
         # TODO: lengths: float/int, [Currently in us but need to veryify that it is greater than 3 clock cycles]
         # TODO: amps : float/int, 0 < amp < 1
         # TODO: freqs : float/int, 0 < freq < 10 [GHz]
         # TODO: phases : float/int
+        # TODO: update comment
 
         if (bool(params[1]) == False) and (len(params) > 2):
-            raise Exception(f"Specified too many sequence parameters for pulse in channel {ch}")
+            raise IndexError(f"Specified too many sequence parameters for pulse in channel {ch}")
         elif bool(params[1]) == True:
             if ((len(params) > 2) and (self.ch_cfg[ch]["ch_type"] == "DIG")
                 or (len(params) > 4) and (self.ch_cfg[ch]["ch_type"] == "DAC")):
-                raise Exception(f"Specified too many sequence parameters for pulse in channel {ch}")
+                raise IndexError(f"Specified too many sequence parameters for pulse in channel {ch}")
+
+        for param in params:
+            if not isinstance(param, (float, int)):
+                raise ValueError(f"Parameter {param} is not a float or int")
 
     def get_end_time(self):
         """
@@ -153,7 +158,7 @@ class PulseProgram():
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
 
-    def generate_asm(self, prog, delta_phis={}, reps=1):
+    def generate_asm(self, prog, delta_phis=None, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -173,6 +178,7 @@ class PulseProgram():
         self.gen_dig_asm(prog)
 
         # TODO: Are wait_all() and synci() both strictly necessary?
+
         prog.wait_all() # Pause tproc until all channels finished sequences
         prog.synci(prog.us2cycles(self.end_time)) # Sync all channels when last channel finished sequence
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
@@ -193,8 +199,12 @@ class PulseProgram():
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
             amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
-            phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"], delta_phis)[ch_index]
-                                 + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+
+            if delta_phis is None:
+                phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+            else:
+                phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
+                                     + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
 
             # Program DAC channel with parameters and then play pulse
             prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
