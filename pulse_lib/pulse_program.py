@@ -196,7 +196,6 @@ class PulseProgram():
         # Below is a hacky alternative to:
         # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
         # It ensures that short pulses are the desired length and that pulses do not overlap
-        # TODO: Use same method for digital pulses
 
         # METHOD 1 -------------------------------------------
         # prev_time_us = ch_cfg[ch]["times"][0]
@@ -252,8 +251,17 @@ class PulseProgram():
 
         for i in range(ch_cfg[ch]["num_pulses"]):
             # DIG pulse parameters
-            time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i])
+
+            # As in gen_dac_asm(), hacky alternative to:
+            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
+            if i > 0:
+                delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
+                time = prev_time + delta_time + ch_cfg[ch]["delay"]
+                prev_time += delta_time
+            else:
+                time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
+                prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
 
             # Add beginning of DIG pulse
             if time in self.dig_seq:
