@@ -193,25 +193,38 @@ class PulseProgram():
 
         prog.declare_gen(ch=ch_index, nqz=1) # Initialise DAC channel
 
-        prev_time_us = ch_cfg[ch]["times"][0]
-        prev_time_cycles = prog.us2cycles(prev_time_us)
+        # Below is a hacky alternative to:
+        # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
+        # It ensures that short pulses are the desired length and that pulses do not overlap
+        # TODO: Use same method for digital pulses
+
+        # METHOD 1 -------------------------------------------
+        # prev_time_us = ch_cfg[ch]["times"][0]
+        # prev_time_cycles = prog.us2cycles(prev_time_us)
+
+        # for i in range(ch_cfg[ch]["num_pulses"]):
+        #     # DAC pulse parameters
+            
+        #     delta_time_us = ch_cfg[ch]["times"][i] - prev_time_us
+        #     time = prev_time_cycles + prog.us2cycles(delta_time_us) + ch_cfg[ch]["delay"]
+        #     prev_time_us += delta_time_us
+        #     prev_time_cycles += prog.us2cycles(delta_time_us)
+        # ----------------------------------------------------
 
         for i in range(ch_cfg[ch]["num_pulses"]):
             # DAC pulse parameters
-            
-            # This is a hacky alternative to the below line
-            # It ensures that short pulses are the desired length and that pulses do not overlap
-            # TODO: Use same method for digital pulses
-            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
-            delta_time_us = ch_cfg[ch]["times"][i] - prev_time_us
-            time = prev_time_cycles + prog.us2cycles(delta_time_us) + ch_cfg[ch]["delay"]
-            prev_time_us += delta_time_us
-            prev_time_cycles += prog.us2cycles(delta_time_us)
-
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
             amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
 
+            if i > 0:
+                delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
+                time = prev_time + delta_time + ch_cfg[ch]["delay"]
+                prev_time += delta_time
+            else:
+                time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
+                prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
+            
             if delta_phis is None:
                 phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
             else:
