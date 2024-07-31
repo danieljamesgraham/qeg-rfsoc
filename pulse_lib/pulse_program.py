@@ -2,11 +2,7 @@
 # FIXME: Timing error if 5x2000 unit pulses are played beside each other
 
 # TODO: Convert all user-input parameters into specific data-type
-# TODO: Add alternative if delta_phis not specified
-# TODO: Warn user, but permit no delta phis to be specified
-# TODO: Change user specified frequency to MHz (from GHz)
-# TODO: Check maximum pulse length
-# TODO: Check which parameters are optional
+# TODO: Check and display which parameters are optional
 
 from pulse_lib.interpolate_phase import interpolate_phase
 import numpy as np
@@ -64,7 +60,7 @@ class PulseProgram():
                     if ch_type == "DAC":
                         self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
                         self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
-                        # TODO: Temporarily changed phase input to radians
+                        # FIXME: Temporarily changed phase input to radians
                         if iq_mix == True and ch_ref == 'B':
                             self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi - 90) # DAC phase [deg]
                         else:
@@ -229,6 +225,7 @@ class PulseProgram():
             
             if delta_phis is None:
                 phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+                print("WARNING: No phase offset has been specified")
             else:
                 phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
                                      + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
