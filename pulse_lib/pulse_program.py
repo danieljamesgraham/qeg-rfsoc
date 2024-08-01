@@ -1,7 +1,3 @@
-# FIXME: If very short sequences are repeated, there are random gaps between each repeat
-# FIXME: Timing error if 5x2000 unit pulses are played beside each other
-
-# TODO: Convert all user-input parameters into specific data-type
 # TODO: Check and display which parameters are optional
 
 from pulse_lib.interpolate_phase import interpolate_phase
@@ -58,8 +54,13 @@ class PulseProgram():
                     self.ch_cfg[ch]["times"].append(float(time/1e3)) # Trigger time [us]
                     self.ch_cfg[ch]["lengths"].append(float(params[0]/1e3)) # Pulse durations [us]
                     if ch_type == "DAC":
-                        self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
+                        if 0 <= float(params[1]) <= 1.0:
+                            self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
+                        else:
+                            raise ValueError(f"Amplitude {float(params[1])} must be lie between 0 and 1")
+
                         self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
+
                         # FIXME: Temporarily changed phase input to radians
                         if iq_mix == True and ch_ref == 'B':
                             self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi - 90) # DAC phase [deg]
@@ -124,13 +125,6 @@ class PulseProgram():
         pulse in array.
         """
 
-        # TODO: times : float/int, +ve
-        # TODO: lengths: float/int, [Currently in us but need to veryify that it is greater than 3 clock cycles]
-        # TODO: amps : float/int, 0 < amp < 1
-        # TODO: freqs : float/int, 0 < freq < 10 [GHz]
-        # TODO: phases : float/int
-        # TODO: update comment
-
         if (bool(params[1]) == False) and (len(params) > 2):
             raise IndexError(f"Specified too many sequence parameters for pulse in channel {ch}")
         elif bool(params[1]) == True:
@@ -175,8 +169,6 @@ class PulseProgram():
                 self.gen_dig_seq(prog, ch)
 
         self.gen_dig_asm(prog)
-
-        # TODO: Are wait_all() and synci() both strictly necessary?
 
         prog.wait_all() # Pause tproc until all channels finished sequences
         prog.synci(prog.us2cycles(self.end_time)) # Sync all channels when last channel finished sequence
