@@ -227,7 +227,12 @@ class PulseProgram():
 
         Parameters
         ----------
-        TODO: Finish docstrings
+        prog : class
+            Instructions to be executed by tproc.
+        delta_phis : dict, optional
+            Offsets for phase alignment between DAC_A and DAC_B
+        reps : int, optional
+            Number of times the pulse sequence is to be repeated. Defaults to 1.
         """
         ch_cfg = self.ch_cfg
 
@@ -251,6 +256,15 @@ class PulseProgram():
     def gen_dac_asm(self, prog, ch, delta_phis):
         """
         DAC specific assembly instructions for use in generate_asm()
+
+        Parameters
+        ----------
+        prog : class
+            Instructions to be executed on tproc.
+        ch : str
+            Name of generator channel.
+        delta_phis : dict
+            Offsets for phase alignment between DAC_A and DAC_B.
         """
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
@@ -304,12 +318,12 @@ class PulseProgram():
         """
         Create class dict 'dig_seq' containing all digital pulse parameters.
 
-        dig_seq : dict
-            key == time : int
-                Time of event occurrence [clock cycles]
-            val == states : list
-                List of tuples in form
-                [('digital channel index' : int, 'logic state' : bool), ...]
+        Parameters
+        ----------
+        prog : class
+            Instructions to be executed on tproc.
+        ch : str
+            Name of generator channel.
         """
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
@@ -346,6 +360,11 @@ class PulseProgram():
     def gen_dig_asm(self, prog):
         """
         Digital output specific assembly instructions for use in generate_asm()
+
+        Parameters
+        ----------
+        prog : class
+            Instructions to be executed on tproc.
         """
         soccfg = prog.soccfg
 
@@ -371,6 +390,17 @@ class PulseProgram():
     def config_internal_start(self, soc, prog, load_pulses=True, reset=False):
         """
         Configure the tproc for internal triggering using the soc.tproc.start() function.
+
+        Parameters
+        ----------
+        soc : class
+            RFSoC class.
+        prog : class
+            Instructions to be executed on tproc.
+        load_pulses : bool, optional
+            Load pulses from program into RFSoC.
+        reset : bool, optional
+            Stop the tproc.
         """
         if prog.binprog is None:
             prog.compile()
@@ -378,7 +408,8 @@ class PulseProgram():
         soc.start_src("internal")
         soc.stop_tproc(lazy=not reset)
 
-        prog.load_pulses(soc)
+        if load_pulses:
+            prog.load_pulses(soc)
         prog.config_gens(soc)
         prog.config_readouts(soc)
 
@@ -387,6 +418,17 @@ class PulseProgram():
     def config_external_start(self, soc, prog, load_pulses=True, reset=False):
         """
         Configure the tproc for external triggering using PMOD1_0.
+
+        Parameters
+        ----------
+        soc : class
+            RFSoC class.
+        prog : class
+            Instructions to be executed on tproc.
+        load_pulses : bool, optional
+            Load pulses from program into RFSoC.
+        reset : bool, optional
+            Stop the tproc.
         """
         if prog.binprog is None:
             prog.compile()
@@ -394,7 +436,8 @@ class PulseProgram():
         soc.start_src("external")
         soc.stop_tproc(lazy=not reset)
 
-        prog.load_pulses(soc)
+        if load_pulses:
+            prog.load_pulses(soc)
         prog.config_gens(soc)
         prog.config_readouts(soc)
 
