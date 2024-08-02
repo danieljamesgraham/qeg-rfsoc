@@ -294,3 +294,29 @@ class PulseProgram():
 
             prog.regwi(rp, r_out, r_val) # Write to register
             prog.seti(dig_id, rp, r_out, time) # Assign digital output
+
+    def config_internal_start(self, soc, prog, load_pulses=True, reset=False):
+        if prog.binprog is None:
+            prog.compile()
+
+        soc.start_src("internal")
+        soc.stop_tproc(lazy=not reset)
+
+        prog.load_pulses(soc)
+        prog.config_gens(soc)
+        prog.config_readouts(soc)
+
+        soc.load_bin_program(prog.binprog)
+
+    def config_external_start(self, soc, prog, load_pulses=True, reset=False):
+        if prog.binprog is None:
+            prog.compile()
+
+        soc.start_src("external")
+        soc.stop_tproc(lazy=not reset)
+
+        prog.load_pulses(soc)
+        prog.config_gens(soc)
+        prog.config_readouts(soc)
+
+        soc.load_bin_program(prog.binprog)
