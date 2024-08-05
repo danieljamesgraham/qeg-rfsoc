@@ -220,7 +220,7 @@ class PulseProgram():
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
 
-    def generate_asm(self, prog, delta_phis=None, reps=1):
+    def generate_asm(self, prog, delta_phis=None, ssb_params=None, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -242,7 +242,7 @@ class PulseProgram():
 
         for ch in ch_cfg:
             if ch_cfg[ch]["ch_type"] == "DAC":
-                self.gen_dac_asm(prog, ch, delta_phis)
+                self.gen_dac_asm(prog, ch, delta_phis, ssb_params)
             elif ch_cfg[ch]["ch_type"] == "DIG":
                 self.gen_dig_seq(prog, ch)
 
@@ -253,7 +253,7 @@ class PulseProgram():
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
 
-    def gen_dac_asm(self, prog, ch, delta_phis):
+    def gen_dac_asm(self, prog, ch, delta_phis, ssb_params):
         """
         DAC specific assembly instructions for use in generate_asm()
 
@@ -288,11 +288,21 @@ class PulseProgram():
         #     prev_time_cycles += prog.us2cycles(delta_time_us)
         # ----------------------------------------------------
 
+        # TODO: Make sure frequencies are the same for SSB
+        # TODO: Get rid of channel conditional assignment of SSB phases and gains
+
         for i in range(ch_cfg[ch]["num_pulses"]):
             # DAC pulse parameters
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
-            amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
+
+            if ssb_params is None:
+                amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
+            else:
+                if ch_index == 0:
+                    amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
+                if ch_index == 1:
+                    amp = int((ch_cfg[ch]["amps"][i] * ssb_params[ch_cfg[ch]["freqs"][i]][1]))
 
             if i > 0:
                 delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
@@ -302,12 +312,22 @@ class PulseProgram():
                 time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
                 prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
             
-            if delta_phis is None:
+            if (delta_phis is None) and (ssb_params is None):
                 phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
                 print("WARNING: No phase offset has been specified")
-            else:
+            elif ssb_params is None:
                 phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
                                      + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+            else:
+                if ch_index == 0:
+                    phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
+                                        + ssb_params[ch_cfg[ch]["freqs"][i]][0]
+                                        + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+                    print(prog.reg2deg(phase))
+                if ch_index == 1:
+                    phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
+                                        + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+                    print(prog.reg2deg(phase))
 
             # Program DAC channel with parameters and then play pulse
             prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
