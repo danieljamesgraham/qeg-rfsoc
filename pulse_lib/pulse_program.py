@@ -231,6 +231,8 @@ class PulseProgram():
             Instructions to be executed by tproc.
         delta_phis : dict, optional
             Offsets for phase alignment between DAC_A and DAC_B
+        ssb_params : dict, optional
+            DAC phase offsets and gains for SSB.
         reps : int, optional
             Number of times the pulse sequence is to be repeated. Defaults to 1.
         """
@@ -265,11 +267,16 @@ class PulseProgram():
             Name of generator channel.
         delta_phis : dict
             Offsets for phase alignment between DAC_A and DAC_B.
+        ssb_params : dict
+            DAC phase offsets and gains for SSB.
         
         Raises
         ------
         ValueError
             DAC gains must be specified as the same value for SSB.
+        KeyError
+            DAC calibration delta_phis must be included for SSB as demanded
+            phases will not be produced otherwise.
         """
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
