@@ -1,4 +1,4 @@
-# TODO: Check and display which parameters are optional
+# TODO: Do not allow DAC frequencies to be different for ssb
 
 from pulse_lib.interpolate_phase import interpolate_phase
 import numpy as np
@@ -265,45 +265,30 @@ class PulseProgram():
             Name of generator channel.
         delta_phis : dict
             Offsets for phase alignment between DAC_A and DAC_B.
+        
+        Raises
+        ------
+        ValueError
+            DAC gains must be specified as the same value for SSB.
         """
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
 
+        if (ssb_params is not None) and (ch_cfg["DAC_A"]["gain"] != ch_cfg["DAC_B"]["gain"]):
+            raise ValueError("DAC gains must be equal for SSB")
+
         prog.declare_gen(ch=ch_index, nqz=1) # Initialise DAC channel
 
-        # Below is a hacky alternative to:
-        # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
-        # It ensures that short pulses are the desired length and that pulses do not overlap
-
-        # METHOD 1 -------------------------------------------
-        # prev_time_us = ch_cfg[ch]["times"][0]
-        # prev_time_cycles = prog.us2cycles(prev_time_us)
-
-        # for i in range(ch_cfg[ch]["num_pulses"]):
-        #     # DAC pulse parameters
-            
-        #     delta_time_us = ch_cfg[ch]["times"][i] - prev_time_us
-        #     time = prev_time_cycles + prog.us2cycles(delta_time_us) + ch_cfg[ch]["delay"]
-        #     prev_time_us += delta_time_us
-        #     prev_time_cycles += prog.us2cycles(delta_time_us)
-        # ----------------------------------------------------
-
-        # TODO: Make sure frequencies are the same for SSB
-        # TODO: Get rid of channel conditional assignment of SSB phases and gains
-
         for i in range(ch_cfg[ch]["num_pulses"]):
-            # DAC pulse parameters
-            length = prog.us2cycles(ch_cfg[ch]["lengths"][i], gen_ch=ch_index)
-            freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
+            # DAC pulse length
+            length_us = ch_cfg[ch]["lengths"][i]
+            length = prog.us2cycles(length_us, gen_ch=ch_index)
 
-            if ssb_params is None:
-                amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
-            else:
-                if ch_index == 0:
-                    amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
-                if ch_index == 1:
-                    amp = int((ch_cfg[ch]["amps"][i] * ssb_params[ch_cfg[ch]["freqs"][i]][1]))
-
+            # DAC pulse start time
+            # Below is a hacky alternative to:
+            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
+            # It ensures that short pulses are the desired length and that pulses do not overlap
+            # The rounding of floats using the above function does not give consistent pulse lenthgs
             if i > 0:
                 delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
                 time = prev_time + delta_time + ch_cfg[ch]["delay"]
@@ -311,23 +296,37 @@ class PulseProgram():
             else:
                 time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
                 prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
-            
-            if (delta_phis is None) and (ssb_params is None):
-                phase = prog.deg2reg(ch_cfg[ch]["phases"][i], gen_ch=ch_index)
-                print("WARNING: No phase offset has been specified")
-            elif ssb_params is None:
-                phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
-                                     + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
+
+            # DAC pulse frequency
+            freq_hz = ch_cfg[ch]["freqs"][i]
+            freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
+
+            # DAC pulse amplitude
+            if ssb_params is None:
+                amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             else:
-                if ch_index == 0:
-                    phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
-                                        + ssb_params[ch_cfg[ch]["freqs"][i]][0]
-                                        + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
-                    print(prog.reg2deg(phase))
-                if ch_index == 1:
-                    phase = prog.deg2reg(interpolate_phase(ch_cfg[ch]["freqs"][i], delta_phis)[ch_index]
-                                        + ch_cfg[ch]["phases"][i], gen_ch=ch_index)
-                    print(prog.reg2deg(phase))
+                amp_norm = ssb_params[freq_hz]["gains"][0]
+                amp_ssb = ssb_params[freq_hz]["gains"][ch_index]
+                amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"] * (amp_ssb / amp_norm))
+
+            # DAC pulse phase
+            phase_deg = ch_cfg[ch]["phases"][i]
+            if (delta_phis is None) and (ssb_params is None):
+                phase = prog.deg2reg(phase_deg, gen_ch=ch_index)
+                print("WARNING: No phase offset has been specified")
+            elif delta_phis is None:
+                raise KeyError("Must include DAC calibration delta_phis for SSB")
+            elif ssb_params is None:
+                phase = prog.deg2reg((interpolate_phase(freq_hz, delta_phis)[ch_index] 
+                                      + phase_deg),
+                                     gen_ch=ch_index)
+            else:
+                if phase_deg != 0:
+                    print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
+                phase = prog.deg2reg((interpolate_phase(freq_hz, delta_phis)[ch_index]
+                                      + ssb_params[freq_hz]["phases"][ch_index]
+                                      + ch_cfg[ch]["phases"][i]),
+                                     gen_ch=ch_index)
 
             # Program DAC channel with parameters and then play pulse
             prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
@@ -349,9 +348,10 @@ class PulseProgram():
         ch_index = ch_cfg[ch]["ch_index"]
 
         for i in range(ch_cfg[ch]["num_pulses"]):
-            # DIG pulse parameters
+            # DIG pulse length 
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i])
 
+            # DIG pulse start time
             # As in gen_dac_asm(), hacky alternative to:
             # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
             if i > 0:
