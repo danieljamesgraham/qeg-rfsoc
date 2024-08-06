@@ -281,7 +281,8 @@ class RFSoCPulses():
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
 
-        calibration = RFSoCPhase(delta_phis)
+        if delta_phis is not None:
+            calibration = RFSoCPhase(delta_phis)
 
         if (ssb_params is not None) and (ch_cfg["DAC_A"]["gain"] != ch_cfg["DAC_B"]["gain"]):
             raise ValueError("DAC gains must be equal for SSB")
@@ -326,11 +327,11 @@ class RFSoCPulses():
             elif delta_phis is None:
                 raise KeyError("Must include DAC calibration delta_phis for SSB")
             elif ssb_params is None:
-                phase = prog.deg2reg(phase_deg+calibration.phase(freq_hz, ch), gen_ch=ch_index)
+                phase = prog.deg2reg(phase_deg+calibration.phase(freq_hz, ch_index), gen_ch=ch_index)
             else:
                 if phase_deg != 0:
                     print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
-                phase = prog.deg2reg((calibration.phase(freq_hz, ch)
+                phase = prog.deg2reg((calibration.phase(freq_hz, ch_index)
                                       + ssb_params[freq_hz]["phases"][ch_index]
                                       + ch_cfg[ch]["phases"][i]),
                                      gen_ch=ch_index)
