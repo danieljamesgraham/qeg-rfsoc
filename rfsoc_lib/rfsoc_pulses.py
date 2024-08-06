@@ -1,12 +1,11 @@
 # TODO: Do not allow DAC frequencies to be different for ssb
 
 import numpy as np
-from rfsoc_calibration import RFSoCCalibration
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
 
-class RFSoCPulses():
+class RfsocPulses():
 
     def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
         """

@@ -40,7 +40,7 @@ class RfsocCalibration():
             
             if ch_index == 1:
                 ssb_gain = self.interpolate(ssb_gains, freq)
-                gain_factor = ssb_gain / self.ssb_params["default_amp"]
+                gain_factor = ssb_gain / self.ssb_params["default_gain"]
                 return gain_factor
     
     def interpolate(self, vals, freq, dac_phi=False):
