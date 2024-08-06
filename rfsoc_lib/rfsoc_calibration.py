@@ -109,9 +109,9 @@ class RfsocCalibration():
         """
         i = bisect.bisect_left(list(param_dict.keys()), freq)
         freq_above = list(param_dict.keys())[i]
-        val_above = dict[list(param_dict.keys())[i]]
+        val_above = param_dict[list(param_dict.keys())[i]]
         freq_below = list(param_dict.keys())[i-1]
-        val_below = dict[list(param_dict.keys())[i-1]]
+        val_below = param_dict[list(param_dict.keys())[i-1]]
 
         if dac_phi == True:
             if abs(val_above - val_below) > 330:

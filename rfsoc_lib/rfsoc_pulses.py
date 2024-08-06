@@ -76,7 +76,7 @@ class RfsocPulses():
                         else:
                             raise ValueError(f"Amplitude {float(params[1])} must be lie between 0 and 1")
 
-                        self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
+                        self.ch_cfg[ch]["freqs"].append(np.round(float(params[2]*1e3), decimals=6)) # DAC frequency [Hz]
 
                         # TODO: Temporarily changed phase input to radians - change back
                         if iq_mix == True and ch_ref == 'B':
@@ -247,7 +247,8 @@ class RfsocPulses():
 
         self.gen_dig_asm(prog)
 
-        prog.wait_all() # Pause tproc until all channels finished sequences
+        # TODO: Investigate whether wait_all() is necessary
+        # prog.wait_all() # Pause tproc until all channels finished sequences
         prog.synci(prog.us2cycles(self.end_time)) # Sync all channels when last channel finished sequence
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
