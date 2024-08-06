@@ -1,12 +1,12 @@
 # TODO: Do not allow DAC frequencies to be different for ssb
 
 import numpy as np
-from rfsoc_calibration import RfsocCalibration
+from rfsoc_calibration import RFSoCCalibration
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
 
-class RfsocPulses():
+class RFSoCPulses():
 
     def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
         """
@@ -309,7 +309,7 @@ class RfsocPulses():
             amp = int(ch_cfg[ch]["amps"][i]
                           * ch_cfg[ch]["gain"])
             if calibration is not None:
-                amp = int(amp*calibration.scale_amp(freq_hz, ch_index))
+                amp = int(amp*calibration.scale_gain(freq_hz, ch_index))
 
             # DAC pulse phase
             phase_deg = ch_cfg[ch]["phases"][i]
