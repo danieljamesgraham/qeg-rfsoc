@@ -2,9 +2,6 @@
 
 import numpy as np
 
-DEFAULT_DELAY = 0
-DEFAULT_GAIN = 10000
-
 class RfsocPulses():
 
     def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
@@ -34,6 +31,9 @@ class RfsocPulses():
         self.ch_cfg = {}
         self.dig_seq = {}
 
+        self.DEFAULT_DELAY = 0
+        self.DEFAULT_GAIN = 10000
+
         self.map_seqs(imported_seqs, ch_map) # Map sequences to appropriate channels
         self.check_delays(delays) # Check delay dictionary is valid
         self.check_gains(gains) # Check gain dictionary is valid
@@ -52,9 +52,9 @@ class RfsocPulses():
                 self.ch_cfg[ch]["ch_index"] = {'A': 1, 'B': 0}.get(ch_ref)
 
             # Assign specified or default gains and delays for channel
-            self.ch_cfg[ch]["delay"] = delays.get(ch, DEFAULT_DELAY)
+            self.ch_cfg[ch]["delay"] = delays.get(ch, self.DEFAULT_DELAY)
             if ch_type == "DAC":
-                self.ch_cfg[ch]["gain"] = gains.get(ch, DEFAULT_GAIN)
+                self.ch_cfg[ch]["gain"] = gains.get(ch, self.DEFAULT_GAIN)
             
             # Create lists of pulse parameters
             self.ch_cfg[ch]["lengths"] = []
@@ -78,7 +78,7 @@ class RfsocPulses():
 
                         self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
 
-                        # FIXME: Temporarily changed phase input to radians
+                        # TODO: Temporarily changed phase input to radians
                         if iq_mix == True and ch_ref == 'B':
                             self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi - 90) # DAC phase [deg]
                         else:
@@ -228,10 +228,8 @@ class RfsocPulses():
         ----------
         prog : class
             Instructions to be executed by tproc.
-        dac_phis : dict, optional
-            Offsets for phase alignment between DAC_A and DAC_B
-        ssb_params : dict, optional
-            DAC phase offsets and gains for SSB.
+        calibration : object, optional
+            RfsocCalibration object containing DAC phase alignment and SSB parameter dictionaries, by default None.
         reps : int, optional
             Number of times the pulse sequence is to be repeated. Defaults to 1.
         """
@@ -260,22 +258,12 @@ class RfsocPulses():
 
         Parameters
         ----------
-        prog : class
+        prog : object
             Instructions to be executed on tproc.
         ch : str
             Name of generator channel.
-        dac_phis : dict
-            Offsets for phase alignment between DAC_A and DAC_B.
-        ssb_params : dict
-            DAC phase offsets and gains for SSB.
-        
-        Raises
-        ------
-        ValueError
-            DAC gains must be specified as the same value for SSB.
-        KeyError
-            DAC calibration dac_phis must be included for SSB as demanded
-            phases will not be produced otherwise.
+        calibration : object
+            RfsocCalibration object containing DAC phase alignment and SSB parameter dictionaries.
         """
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
@@ -327,7 +315,7 @@ class RfsocPulses():
 
         Parameters
         ----------
-        prog : class
+        prog : object
             Instructions to be executed on tproc.
         ch : str
             Name of generator channel.
@@ -371,7 +359,7 @@ class RfsocPulses():
 
         Parameters
         ----------
-        prog : class
+        prog : object
             Instructions to be executed on tproc.
         """
         soccfg = prog.soccfg
@@ -401,9 +389,9 @@ class RfsocPulses():
 
         Parameters
         ----------
-        soc : class
-            RFSoC class.
-        prog : class
+        soc : object
+            RFSoC object.
+        prog : object
             Instructions to be executed on tproc.
         load_pulses : bool, optional
             Load pulses from program into RFSoC.
@@ -429,9 +417,9 @@ class RfsocPulses():
 
         Parameters
         ----------
-        soc : class
-            RFSoC class.
-        prog : class
+        soc : object
+            RFSoC object.
+        prog : object
             Instructions to be executed on tproc.
         load_pulses : bool, optional
             Load pulses from program into RFSoC.
