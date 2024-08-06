@@ -78,7 +78,7 @@ class RfsocPulses():
 
                         self.ch_cfg[ch]["freqs"].append(float(params[2]*1e3)) # DAC frequency [Hz]
 
-                        # TODO: Temporarily changed phase input to radians
+                        # TODO: Temporarily changed phase input to radians - change back
                         if iq_mix == True and ch_ref == 'B':
                             self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi - 90) # DAC phase [deg]
                         else:
@@ -293,8 +293,7 @@ class RfsocPulses():
             freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
 
             # DAC pulse amplitude
-            amp = int(ch_cfg[ch]["amps"][i]
-                          * ch_cfg[ch]["gain"])
+            amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
             if calibration is not None:
                 amp = int(amp*calibration.scale_gain(freq_hz, ch_index))
 

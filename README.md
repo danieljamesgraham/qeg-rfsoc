@@ -2,6 +2,15 @@
 
 Work through `rfsoc_pulses_example.ipynb' to see an example of the RFSoC in action.
 
+## TODO
+
+- Format of pulse program sequences
+
+- Turn board on and connect to computer using network cable.
+- Go to `http://BOARD_IP/lab` in browser.
+- Run cell in `01_nameserver.ipynb`, followed by cell in `02_server.ipynb`.
+- Read following cells carefully and run.
+
 ## Prerequisites
 
 Create preferred Python virtual environment and run `pip install -r requirements.txt` to install the correct versions of the relevant packages.
