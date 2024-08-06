@@ -8,12 +8,12 @@ class RFSoCPhase():
         if ch == 0:
             delta_phis = dict(sorted(self.delta_phis.items()))
 
-            ind = bisect.bisect_left(list(self.delta_phis.keys()), freq)
+            ind = bisect.bisect_left(list(delta_phis.keys()), freq)
 
-            freq_above      = list(self.delta_phis.keys())[ind]
-            delta_phi_above = self.delta_phis[list(self.delta_phis.keys())[ind]][0]
-            freq_below      = list(self.delta_phis.keys())[ind-1]
-            delta_phi_below = self.delta_phis[list(self.delta_phis.keys())[ind-1]][0]
+            freq_above      = list(delta_phis.keys())[ind]
+            delta_phi_above = delta_phis[list(delta_phis.keys())[ind]][0]
+            freq_below      = list(delta_phis.keys())[ind-1]
+            delta_phi_below = delta_phis[list(delta_phis.keys())[ind-1]][0]
 
             if abs(delta_phi_above - delta_phi_below) > 330:
                 if delta_phi_above > delta_phi_below:
