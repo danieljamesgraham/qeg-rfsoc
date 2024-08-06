@@ -1,6 +1,6 @@
 import bisect
 
-class PhaseCalibration():
+class RFSoCPhase():
     def __init__(self, delta_phis):
         self.delta_phis = delta_phis
     

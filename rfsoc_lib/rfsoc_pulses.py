@@ -1,12 +1,12 @@
 # TODO: Do not allow DAC frequencies to be different for ssb
 
-from pulse_lib.interpolate_phase import interpolate_phase
 import numpy as np
+from rfsoc_phase import RFSoCPhase
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
 
-class PulseProgram():
+class RFSoCPulses():
 
     def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
         """
@@ -281,6 +281,8 @@ class PulseProgram():
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
 
+        calibration = RFSoCPhase(delta_phis)
+
         if (ssb_params is not None) and (ch_cfg["DAC_A"]["gain"] != ch_cfg["DAC_B"]["gain"]):
             raise ValueError("DAC gains must be equal for SSB")
 
@@ -324,13 +326,11 @@ class PulseProgram():
             elif delta_phis is None:
                 raise KeyError("Must include DAC calibration delta_phis for SSB")
             elif ssb_params is None:
-                phase = prog.deg2reg((interpolate_phase(freq_hz, delta_phis)[ch_index] 
-                                      + phase_deg),
-                                     gen_ch=ch_index)
+                phase = prog.deg2reg(phase_deg+calibration.phase(freq_hz, ch), gen_ch=ch_index)
             else:
                 if phase_deg != 0:
                     print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
-                phase = prog.deg2reg((interpolate_phase(freq_hz, delta_phis)[ch_index]
+                phase = prog.deg2reg((calibration.phase(freq_hz, ch)
                                       + ssb_params[freq_hz]["phases"][ch_index]
                                       + ch_cfg[ch]["phases"][i]),
                                      gen_ch=ch_index)

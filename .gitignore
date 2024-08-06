@@ -1,5 +1,4 @@
 .venv/
 __pycache__
 pickles/calibrate_phase.pickle
-pickles/ssb_params.pickle
 temp/
