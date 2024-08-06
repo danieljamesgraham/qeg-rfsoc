@@ -1,12 +1,12 @@
 # TODO: Do not allow DAC frequencies to be different for ssb
 
 import numpy as np
-from rfsoc_phase import RFSoCPhase
+from rfsoc_calibration import RfsocCalibration
 
 DEFAULT_DELAY = 0
 DEFAULT_GAIN = 10000
 
-class RFSoCPulses():
+class RfsocPulses():
 
     def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
         """
@@ -220,7 +220,7 @@ class RFSoCPulses():
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
 
-    def generate_asm(self, prog, delta_phis=None, ssb_params=None, reps=1):
+    def generate_asm(self, prog, calibration=None, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -229,7 +229,7 @@ class RFSoCPulses():
         ----------
         prog : class
             Instructions to be executed by tproc.
-        delta_phis : dict, optional
+        dac_phis : dict, optional
             Offsets for phase alignment between DAC_A and DAC_B
         ssb_params : dict, optional
             DAC phase offsets and gains for SSB.
@@ -244,7 +244,7 @@ class RFSoCPulses():
 
         for ch in ch_cfg:
             if ch_cfg[ch]["ch_type"] == "DAC":
-                self.gen_dac_asm(prog, ch, delta_phis, ssb_params)
+                self.gen_dac_asm(prog, ch, calibration)
             elif ch_cfg[ch]["ch_type"] == "DIG":
                 self.gen_dig_seq(prog, ch)
 
@@ -255,7 +255,7 @@ class RFSoCPulses():
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
 
-    def gen_dac_asm(self, prog, ch, delta_phis, ssb_params):
+    def gen_dac_asm(self, prog, ch, calibration):
         """
         DAC specific assembly instructions for use in generate_asm()
 
@@ -265,7 +265,7 @@ class RFSoCPulses():
             Instructions to be executed on tproc.
         ch : str
             Name of generator channel.
-        delta_phis : dict
+        dac_phis : dict
             Offsets for phase alignment between DAC_A and DAC_B.
         ssb_params : dict
             DAC phase offsets and gains for SSB.
@@ -275,17 +275,11 @@ class RFSoCPulses():
         ValueError
             DAC gains must be specified as the same value for SSB.
         KeyError
-            DAC calibration delta_phis must be included for SSB as demanded
+            DAC calibration dac_phis must be included for SSB as demanded
             phases will not be produced otherwise.
         """
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
-
-        if delta_phis is not None:
-            calibration = RFSoCPhase(delta_phis)
-
-        if (ssb_params is not None) and (ch_cfg["DAC_A"]["gain"] != ch_cfg["DAC_B"]["gain"]):
-            raise ValueError("DAC gains must be equal for SSB")
 
         prog.declare_gen(ch=ch_index, nqz=1) # Initialise DAC channel
 
@@ -312,29 +306,16 @@ class RFSoCPulses():
             freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
 
             # DAC pulse amplitude
-            if ssb_params is None:
-                amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
-            else:
-                amp_norm = ssb_params[freq_hz]["gains"][0]
-                amp_ssb = ssb_params[freq_hz]["gains"][ch_index]
-                amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"] * (amp_ssb / amp_norm))
+            amp = int(ch_cfg[ch]["amps"][i]
+                          * ch_cfg[ch]["gain"])
+            if calibration is not None:
+                amp = int(amp*calibration.scale_amp(freq_hz, ch_index))
 
             # DAC pulse phase
             phase_deg = ch_cfg[ch]["phases"][i]
-            if (delta_phis is None) and (ssb_params is None):
-                phase = prog.deg2reg(phase_deg, gen_ch=ch_index)
-                print("WARNING: No phase offset has been specified")
-            elif delta_phis is None:
-                raise KeyError("Must include DAC calibration delta_phis for SSB")
-            elif ssb_params is None:
-                phase = prog.deg2reg(phase_deg+calibration.phase(freq_hz, ch_index), gen_ch=ch_index)
-            else:
-                if phase_deg != 0:
-                    print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
-                phase = prog.deg2reg((calibration.phase(freq_hz, ch_index)
-                                      + ssb_params[freq_hz]["phases"][ch_index]
-                                      + ch_cfg[ch]["phases"][i]),
-                                     gen_ch=ch_index)
+            if calibration is not None:
+                phase_deg += calibration.phase(freq_hz, ch_index)
+            phase = prog.deg2reg(phase_deg%360, gen_ch=ch_index)
 
             # Program DAC channel with parameters and then play pulse
             prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
