@@ -150,7 +150,7 @@ class RfsocPulses():
             self.check_ch(ch)
 
             if not isinstance(gain, (int, float)):
-                raise TypeError(f"{ch} gain '{gain}' not int or float")
+                raise TypeError(f"{ch} gain '{gain}' is a {type(gain)}. Must be a float or int")
 
             if abs(gain) > 32767:
                 raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 32766")
@@ -204,7 +204,7 @@ class RfsocPulses():
 
         for param in params:
             if not isinstance(param, (float, int)):
-                raise ValueError(f"Parameter {param} is not a float or int")
+                raise ValueError(f"Parameter {param} is a {type(param)}. Must be a float or int")
 
     def get_end_time(self):
         """
@@ -277,17 +277,23 @@ class RfsocPulses():
             length = prog.us2cycles(length_us, gen_ch=ch_index)
 
             # DAC pulse start time
-            # Below is a hacky alternative to:
-            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
+            time_us = ch_cfg[ch]["times"][i]
+            if time_us > prev_time_us + length_us:
+                time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+            else:
+                time = "auto"
+            prev_time_us = time_us + length_us
+
+            # Below is a hacky alternative to the DAC pulse start time
             # It ensures that short pulses are the desired length and that pulses do not overlap
             # The rounding of floats using the above function does not give consistent pulse lenthgs
-            if i > 0:
-                delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
-                time = prev_time + delta_time + ch_cfg[ch]["delay"]
-                prev_time += delta_time
-            else:
-                time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
-                prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
+            # if i > 0:
+            #     delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
+            #     time = prev_time + delta_time + ch_cfg[ch]["delay"]
+            #     prev_time += delta_time
+            # else:
+            #     time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
+            #     prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
 
             # DAC pulse frequency
             freq_hz = ch_cfg[ch]["freqs"][i]
