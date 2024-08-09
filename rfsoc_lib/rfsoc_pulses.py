@@ -45,10 +45,12 @@ class RfsocPulses():
             ch_type = self.ch_cfg[ch]["ch_type"] = ch.split('_')[0]
             ch_ref = ch.split('_')[1]
             if ch_type == "DIG":
-                print(f"----- DIG {ch_ref} ------")
+                if print_params == True:
+                    print(f"----- DIG {ch_ref} ------")
                 self.ch_cfg[ch]["ch_index"] = int(ch_ref)
             elif ch_type == "DAC":
-                print(f"----- DAC {ch_ref} -----")
+                if print_params == True:
+                    print(f"----- DAC {ch_ref} -----")
                 self.ch_cfg[ch]["ch_index"] = {'A': 1, 'B': 0}.get(ch_ref)
 
             # Assign specified or default gains and delays for channel
@@ -92,7 +94,9 @@ class RfsocPulses():
                 for key, value in self.ch_cfg[ch].items():
                     print(f"{key}: {value}")
 
-        self.get_end_time()
+        self.end_time = self.get_end_time()
+        if print_params == True:
+            print(f"----- End time: {self.end_time} -----")
 
     def map_seqs(self, imported_seqs, ch_map):
         """
@@ -214,11 +218,11 @@ class RfsocPulses():
         """
         # Find and print time at which longest sequence ends
         end_times = [self.ch_cfg[ch]["duration"] for ch in self.ch_cfg]
-        self.end_time = max(end_times)
 
-        print(f"----- End time: {self.end_time} -----")
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
+        
+        return max(end_times)
 
     def generate_asm(self, prog, calibration=None, const_power=None, reps=1):
         """
