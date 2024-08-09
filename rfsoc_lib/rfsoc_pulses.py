@@ -4,7 +4,7 @@ import numpy as np
 
 class RfsocPulses():
 
-    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
+    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False, print_params=False):
         """
         Constructor method.
         Creates and prints dictionary containing all specified pulse sequence 
@@ -88,8 +88,9 @@ class RfsocPulses():
             self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
             self.ch_cfg[ch]["duration"] = time/1e3 # End time of sequence [us]
 
-            for key, value in self.ch_cfg[ch].items():
-                print(f"{key}: {value}")
+            if print_params == True:
+                for key, value in self.ch_cfg[ch].items():
+                    print(f"{key}: {value}")
 
         self.get_end_time()
 
@@ -150,7 +151,7 @@ class RfsocPulses():
             self.check_ch(ch)
 
             if not isinstance(gain, (int, float)):
-                raise TypeError(f"{ch} gain '{gain}' not int or float")
+                raise TypeError(f"{ch} gain '{gain}' is a {type(gain)}. Must be a float or int")
 
             if abs(gain) > 32767:
                 raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 32766")
@@ -204,7 +205,7 @@ class RfsocPulses():
 
         for param in params:
             if not isinstance(param, (float, int)):
-                raise ValueError(f"Parameter {param} is not a float or int")
+                raise ValueError(f"Parameter {param} is a {type(param)}. Must be a float or int")
 
     def get_end_time(self):
         """
@@ -219,7 +220,7 @@ class RfsocPulses():
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
 
-    def generate_asm(self, prog, calibration=None, const_power=None, const_power_factor=1, reps=1):
+    def generate_asm(self, prog, calibration=None, const_power=None, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -235,13 +236,13 @@ class RfsocPulses():
         """
         ch_cfg = self.ch_cfg
 
-        prog.synci(200)  # Give processor some time to configure pulses, absolutely necessary
+        prog.synci(200)  # Give processor some time to configure pulses
         prog.regwi(0, 14, reps - 1) # 10 reps, stored in page 0, register 14
         prog.label("LOOP_I") # Start of internal loop
 
         for ch in ch_cfg:
             if ch_cfg[ch]["ch_type"] == "DAC":
-                self.gen_dac_asm(prog, ch, calibration, const_power, const_power_factor)
+                self.gen_dac_asm(prog, ch, calibration, const_power)
             elif ch_cfg[ch]["ch_type"] == "DIG":
                 self.gen_dig_seq(prog, ch)
 
@@ -253,7 +254,7 @@ class RfsocPulses():
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
 
-    def gen_dac_asm(self, prog, ch, calibration, const_power, const_power_factor):
+    def gen_dac_asm(self, prog, ch, calibration, const_power):
         """
         DAC specific assembly instructions for use in generate_asm()
 
@@ -277,17 +278,26 @@ class RfsocPulses():
             length = prog.us2cycles(length_us, gen_ch=ch_index)
 
             # DAC pulse start time
-            # Below is a hacky alternative to:
-            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
+            time_us = ch_cfg[ch]["times"][i]
+            if i > 0:
+                if time_us > ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1]:
+                    time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+                else:
+                    time = "auto"
+            else:
+                time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+
+            # Below is a hacky alternative to the DAC pulse start time
             # It ensures that short pulses are the desired length and that pulses do not overlap
             # The rounding of floats using the above function does not give consistent pulse lenthgs
-            if i > 0:
-                delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
-                time = int(prev_time + delta_time + ch_cfg[ch]["delay"])
-                prev_time += delta_time
-            else:
-                time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
-                prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
+            # No longer usin this method as qick does not like it when you assign pulses with the same start time as the previous pulse's end time
+            # if i > 0:
+            #     delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
+            #     time = prev_time + delta_time + ch_cfg[ch]["delay"]
+            #     prev_time += delta_time
+            # else:
+            #     time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
+            #     prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
 
             # DAC pulse frequency
             freq_hz = ch_cfg[ch]["freqs"][i]
@@ -296,7 +306,7 @@ class RfsocPulses():
             # DAC pulse amplitude
             # TODO: Make robust
             if const_power is not None:
-                amp = int(const_power_factor * const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))
+                amp = int(const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))
             else:
                 amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
                 if calibration is not None:
@@ -332,15 +342,15 @@ class RfsocPulses():
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i])
 
             # DIG pulse start time
+            time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
             # As in gen_dac_asm(), hacky alternative to:
-            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
-            if i > 0:
-                delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
-                time = prev_time + delta_time + ch_cfg[ch]["delay"]
-                prev_time += delta_time
-            else:
-                time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
-                prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
+            # if i > 0:
+            #     delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
+            #     time = prev_time + delta_time + ch_cfg[ch]["delay"]
+            #     prev_time += delta_time
+            # else:
+            #     time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
+            #     prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
 
             # Add beginning of DIG pulse
             if time in self.dig_seq:
