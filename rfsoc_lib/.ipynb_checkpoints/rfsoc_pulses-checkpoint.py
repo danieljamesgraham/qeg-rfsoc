@@ -283,7 +283,7 @@ class RfsocPulses():
             # The rounding of floats using the above function does not give consistent pulse lenthgs
             if i > 0:
                 delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
-                time = prev_time + delta_time + ch_cfg[ch]["delay"]
+                time = int(prev_time + delta_time + ch_cfg[ch]["delay"])
                 prev_time += delta_time
             else:
                 time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
