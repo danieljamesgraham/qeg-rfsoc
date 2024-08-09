@@ -4,7 +4,7 @@ import numpy as np
 
 class RfsocPulses():
 
-    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False):
+    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False, print_params=False):
         """
         Constructor method.
         Creates and prints dictionary containing all specified pulse sequence 
@@ -88,8 +88,9 @@ class RfsocPulses():
             self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
             self.ch_cfg[ch]["duration"] = time/1e3 # End time of sequence [us]
 
-            for key, value in self.ch_cfg[ch].items():
-                print(f"{key}: {value}")
+            if print_params == True:
+                for key, value in self.ch_cfg[ch].items():
+                    print(f"{key}: {value}")
 
         self.get_end_time()
 
@@ -278,15 +279,18 @@ class RfsocPulses():
 
             # DAC pulse start time
             time_us = ch_cfg[ch]["times"][i]
-            if time_us > prev_time_us + length_us:
-                time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+            if i > 0:
+                if time_us > ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1]:
+                    time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+                else:
+                    time = "auto"
             else:
-                time = "auto"
-            prev_time_us = time_us + length_us
+                time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
 
             # Below is a hacky alternative to the DAC pulse start time
             # It ensures that short pulses are the desired length and that pulses do not overlap
             # The rounding of floats using the above function does not give consistent pulse lenthgs
+            # No longer usin this method as qick does not like it when you assign pulses with the same start time as the previous pulse's end time
             # if i > 0:
             #     delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
             #     time = prev_time + delta_time + ch_cfg[ch]["delay"]
@@ -338,15 +342,15 @@ class RfsocPulses():
             length = prog.us2cycles(ch_cfg[ch]["lengths"][i])
 
             # DIG pulse start time
+            time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
             # As in gen_dac_asm(), hacky alternative to:
-            # time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
-            if i > 0:
-                delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
-                time = prev_time + delta_time + ch_cfg[ch]["delay"]
-                prev_time += delta_time
-            else:
-                time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
-                prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
+            # if i > 0:
+            #     delta_time = prog.us2cycles(ch_cfg[ch]["times"][i] - ch_cfg[ch]["times"][i-1])
+            #     time = prev_time + delta_time + ch_cfg[ch]["delay"]
+            #     prev_time += delta_time
+            # else:
+            #     time = prog.us2cycles(ch_cfg[ch]["times"][0]) + ch_cfg[ch]["delay"]
+            #     prev_time = prog.us2cycles(ch_cfg[ch]["times"][0])
 
             # Add beginning of DIG pulse
             if time in self.dig_seq:
