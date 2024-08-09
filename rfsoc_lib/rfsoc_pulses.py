@@ -220,7 +220,7 @@ class RfsocPulses():
         if not all(i == end_times[0] for i in end_times):
             print("WARNING! Not all sequences are of the same duration")
 
-    def generate_asm(self, prog, calibration=None, const_power=None, reps=1):
+    def generate_asm(self, prog, calibration=None, const_power=None, const_power_factor=1, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -242,7 +242,7 @@ class RfsocPulses():
 
         for ch in ch_cfg:
             if ch_cfg[ch]["ch_type"] == "DAC":
-                self.gen_dac_asm(prog, ch, calibration, const_power)
+                self.gen_dac_asm(prog, ch, calibration, const_power, const_power_factor)
             elif ch_cfg[ch]["ch_type"] == "DIG":
                 self.gen_dig_seq(prog, ch)
 
@@ -254,7 +254,7 @@ class RfsocPulses():
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
 
-    def gen_dac_asm(self, prog, ch, calibration, const_power):
+    def gen_dac_asm(self, prog, ch, calibration, const_power, const_power_factor):
         """
         DAC specific assembly instructions for use in generate_asm()
 
@@ -306,7 +306,7 @@ class RfsocPulses():
             # DAC pulse amplitude
             # TODO: Make robust
             if const_power is not None:
-                amp = int(const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))
+                amp = int(const_power_factor*const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))
             else:
                 amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
                 if calibration is not None:
