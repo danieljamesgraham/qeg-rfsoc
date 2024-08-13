@@ -1,73 +1,27 @@
 # Quantum Engineering Group RFSoC Repository
 
-Work through `rfsoc_pulses_example.ipynb' to see an example of the RFSoC in action.
+## Useful Notebooks
 
-## TODO
-
-- Format of pulse program sequences
-
-- Turn board on and connect to computer using network cable.
-- Go to `http://BOARD_IP/lab` in browser.
-- Run cell in `01_nameserver.ipynb`, followed by cell in `02_server.ipynb`.
-- Read following cells carefully and run.
-
-## Prerequisites
-
-Create preferred Python virtual environment and run `pip install -r requirements.txt` to install the correct versions of the relevant packages.
-
-
-# Getting Started with RFSoC 4x2
-
-## Configuring Local Computer
-
-## Network Configuration (RFSoC)
-
-<!-- TODO: Instructions on Linux DCHP/manual IP address assignment. -->
-Instructions for 
-
-## Network Configuration (Personal Computer)
-
-- Go to network settings and change your IP address assignment from automatic (DCHP) to manual.
-- Configure IPv4 as follows:
-    - IP address: `192.168.2.1`
-    - Subnet mask: `255.255.255.0`
-
-## Python Virtual Environment Configuration (Personal Computer)
-
-# qd-qick-dawg
+- Notebook `00_dac_phase_calibration.ipynb` is used to calibrate the phase offset between DACs.
+- Notebook `01_rfsoc_pulses_demo.ipynb` is a short demo notebook.
+- Notebook `02_rfsoc_limitations.ipynb` outlines the limitations of the RFSoC 4x2 board.
 
 ## Getting Started
 
-Follow qick-dawg [installation guide](https://github.com/sandialabs/qick-dawg/tree/main/installation) until step 3b and connect RFSoC PYNQ to local machine using an Ethernet cable. The LED display on the board should read:
-
-```
-RFSoC-PYNQ
-No IP detected
-```
-
-Set a fixed IP address on the local machine to 192.168.2.1 (host ID '1' is arbitrary) and set the subnet mask to 255.255.255.0. Use [nmap](https://nmap.org/) to locate the IP address of the dev. board:
-
-```
-nmap -sn 192.168.2.1-255
-```
-
-Once IP address of board is located, run `nmap 192.168.2.99` (replace default IP address if applicable) to scan and display all open ports. Port 9090 is used to access the board's Jupyter notebooks at the address `http://192.168.2.99:9090/lab`.
-
-Install the necessary files from the quick-dawg package onto the FPGA. The password required when prompted is `xilinx`. Run the following commands when in the `qick-dawg` directory:
-
-```
-scp -r installation xilinx@192.168.2.99:/home/xilinx/jupyter_notebooks
-scp -r qick xilinx@192.168.2.99:/home/xilinx/jupyter_notebooks
-```
-
-Run all the cells in `installation/Install_Packages_LAN.ipynb` to complete the installation of the necessary packages. Resume the installation guide at step 3d.
+- Go to `http://BOARD_IP:9090/lab` in browser.
+    - The default board IP is `192.168.2.99`.
+    - The Jupyter Lab password is initially `xilinx`
+- Run cell in `01_nameserver.ipynb`, followed by cell in `02_server.ipynb`.
+- The necessary Python packages to use are board are contained in `requirements.txt`.
 
 ## Changing the Board's IP Address
 
-Begin an SSH connection to the board and open the Ethernet network interface configuration file:
+- Open an SSH connection to the board.
+  - The default username and password are both `xilinx`.
+- Open the Ethernet network interface configuration file:
 
 ```
 sudoedit /etc/network/interfaces.d/eth0
 ```
 
-Change the host ID of the IP address in line 6 (ie. change '99' in `address 192.168.2.99`) to an ID that is not currently utilised on the network (refer to previously completed network scan using [nmap](https://nmap.org/)). Make a note of this address for future communications with the board.
+- Change the host ID of the IP address in line 6 (ie. change '99' in `address 192.168.2.99`) to an ID that is not currently utilised.
