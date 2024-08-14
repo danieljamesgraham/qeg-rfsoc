@@ -21,12 +21,9 @@ class RfsocPulses():
         delays : dict, optional
             Specify delays of channels for synchronisation (+ve int), overriding DEFAULT_DELAY.
         iq_mix : bool, optional
-            DAC_A lags DAC_B by 90 degrees for IQ mixing. Defaults to false.
-        
-        Raises
-        ------
-        ValueError
-            DAC amplitude specified in imported_seqs does not lie between 0 and 1.
+            DAC_A lags DAC_B by 90 degrees for IQ mixing. Defaults to False.
+        print_params : bool, optional
+            If True, print pulse parameters. Defaults to False.
         """
         self.ch_cfg = {}
         self.iq_data = {}
@@ -41,18 +38,13 @@ class RfsocPulses():
 
         for ch, seq_params in self.pulse_seqs.items():
             self.ch_cfg[ch] = {}
-            self.iq_data[ch] = {}
 
             self.check_ch(ch) # Check channel string is valid
             ch_type = self.ch_cfg[ch]["ch_type"] = ch.split('_')[0]
             ch_ref = ch.split('_')[1]
             if ch_type == "DIG":
-                if print_params == True:
-                    print(f"----- DIG {ch_ref} ------")
                 self.ch_cfg[ch]["ch_index"] = int(ch_ref)
             elif ch_type == "DAC":
-                if print_params == True:
-                    print(f"----- DAC {ch_ref} -----")
                 self.ch_cfg[ch]["ch_index"] = {'A': 1, 'B': 0}.get(ch_ref)
 
             # Assign specified or default gains and delays for channel
@@ -61,71 +53,59 @@ class RfsocPulses():
                 self.ch_cfg[ch]["gain"] = gains.get(ch, self.DEFAULT_GAIN)
             
             # Create lists of pulse parameters
-            self.ch_cfg[ch]["lengths"] = []
-            self.ch_cfg[ch]["times"] = []
+            self.ch_cfg[ch].update({"lengths":[], "times":[]})
             if ch_type ==  "DAC":
-                self.ch_cfg[ch]["amps"] = []
-                self.ch_cfg[ch]["freqs"] = []
-                self.ch_cfg[ch]["phases"] = []
-                self.ch_cfg[ch]["mode"] = []
-                self.iq_data[ch]["idata"] = []
-                self.iq_data[ch]["qdata"] = []
+                self.ch_cfg[ch].update({"amps":[], "freqs":[], "phases":[], "styles":[], "outsels":[]})
+                self.iq_data[ch] = {"idata":[], "qdata":[]}
 
             time = 0
             for params in seq_params:
-                if isinstance(params, tuple):
+                if isinstance(params, tuple): # Regular pulse
                     self.check_params(ch, params)
-                    if bool(params[1]) == True:
+                    length_ns = params[0]
+
+                    if bool(params[1]) == True: # A pulse exists
                         self.ch_cfg[ch]["times"].append(float(time/1e3)) # Trigger time [us]
-                        self.ch_cfg[ch]["lengths"].append(float(params[0]/1e3)) # Pulse durations [us]
+                        self.ch_cfg[ch]["lengths"].append(float(length_ns/1e3)) # Pulse durations [us]
+
                         if ch_type == "DAC":
-                            if 0 <= float(params[1]) <= 1.0:
-                                self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
-                            else:
-                                raise ValueError(f"Amplitude {float(params[1])} must be lie between 0 and 1")
+                            self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
+                            self.ch_cfg[ch]["freqs"].append(np.round(float(params[2]*1e3), 6)) # DAC frequency [Hz]
+                            self.ch_cfg[ch]["styles"].append('const')
+                            self.ch_cfg[ch]["outsels"].append(None)
+                            self.iq_data[ch]["idata"].append(None)
+                            self.iq_data[ch]["qdata"].append(None)
 
-                            self.ch_cfg[ch]["freqs"].append(np.round(float(params[2]*1e3), decimals=6)) # DAC frequency [Hz]
-
-                            # TODO: Temporarily changed phase input to radians - change back
+                            # Enable simple IQ mixing
                             if iq_mix == True and ch_ref == 'B':
-                                self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi - 90) # DAC phase [deg]
+                                self.ch_cfg[ch]["phases"].append(float(params[3] - 90)) # DAC phase [deg]
                             else:
-                                self.ch_cfg[ch]["phases"].append((float(params[3])*180)/np.pi) # DAC phase [deg]
-                            
-                            self.ch_cfg[ch]["mode"].append('const')
+                                self.ch_cfg[ch]["phases"].append(float(params[3])) # DAC phase [deg]
 
-                    time += params[0]
-                    
-                # TODO: Check that nothing is missing here
-                else:
+                else: # Arb. pulse
+                    length_ns = params.total_length
+
                     self.ch_cfg[ch]["times"].append(float(time/1e3))
-                    self.ch_cfg[ch]["lengths"].append(float(params.total_time/1e3))
-                    self.ch_cfg[ch]["amps"].append(params.mode)
-                    if isinstance(params.freq, str):
-                        self.ch_cfg[ch]["freqs"].append(params.freq)
-                    else:
-                        self.ch_cfg[ch]["freqs"].append(np.round(float(params.freq*1e3), decimals=6))
-                    self.ch_cfg[ch]["phases"].append(params.mode)
-
-                    self.ch_cfg[ch]["mode"].append(params.mode)
-                
+                    self.ch_cfg[ch]["lengths"].append(float(length_ns/1e3))
+                    self.ch_cfg[ch]["amps"].append('arb')
+                    self.ch_cfg[ch]["phases"].append('arb')
+                    self.ch_cfg[ch]["styles"].append('arb')
+                    self.ch_cfg[ch]["outsels"].append(params.outsel)
                     self.iq_data[ch]["idata"].append(params.idata)
                     self.iq_data[ch]["qdata"].append(params.qdata)
 
-                    time += params.total_time
+                    if params.freq is not None:
+                        self.ch_cfg[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
+                    else:
+                        self.ch_cfg[ch]["freqs"].append(params.outsel)
+
+                time += length_ns
                 
-
-
             self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
             self.ch_cfg[ch]["duration"] = time/1e3 # End time of sequence [us]
 
-            if print_params == True:
-                for key, value in self.ch_cfg[ch].items():
-                    print(f"{key}: {value}")
-
         self.end_time = self.get_end_time()
-        if print_params == True:
-            print(f"----- End time: {self.end_time} -----")
+        self.print_params(print_params)
 
     def map_seqs(self, imported_seqs, ch_map):
         """
@@ -226,6 +206,8 @@ class RfsocPulses():
         IndexError
             Too many parameters specified for DAC or DIG channel.
         ValueError
+            DAC amplitude must lie between 0 and 1.
+        ValueError
             Parameter is not a float or an int.
         """
 
@@ -233,13 +215,16 @@ class RfsocPulses():
             raise IndexError(f"Specified too many sequence parameters for pulse in channel {ch}")
         elif bool(params[1]) == True:
             if ((len(params) > 2) and (self.ch_cfg[ch]["ch_type"] == "DIG")
-                or (len(params) > 5) and (self.ch_cfg[ch]["ch_type"] == "DAC")):
+                or (len(params) > 4) and (self.ch_cfg[ch]["ch_type"] == "DAC")):
                 raise IndexError(f"Specified too many sequence parameters for pulse in channel {ch}")
+        
+        if self.ch_cfg[ch]["ch_type"] == "DAC":
+            if not 0 <= float(params[1]) <= 1.0:
+                raise ValueError(f"Amplitude {float(params[1])} must be lie between 0 and 1")
 
-        # TODO: Is this needed?
-        # for param in params:
-        #     if not isinstance(param, (float, int)):
-        #         raise ValueError(f"Parameter {param} is a {type(param)}. Must be a float or int")
+        for param in params:
+            if not isinstance(param, (float, int)):
+                raise ValueError(f"Parameter {param} is a {type(param)}. Must be a float or int")
 
     def get_end_time(self):
         """
@@ -250,9 +235,33 @@ class RfsocPulses():
         end_times = [self.ch_cfg[ch]["duration"] for ch in self.ch_cfg]
 
         if not all(i == end_times[0] for i in end_times):
-            print("WARNING! Not all sequences are of the same duration")
+            print(f"WARNING! Not all sequences are of the same duration: {end_times}")
         
         return max(end_times)
+    
+    def print_params(self, enabled):
+        """
+        Prints dictionary containing pulse parameters for each channel. Useful for debugging.
+
+        Parameters
+        ----------
+        enabled : bool
+            If True, print pulse parameters.
+        """
+        if enabled:
+            for ch in self.pulse_seqs:
+                if self.ch_cfg[ch]["ch_type"] == "DIG":
+                    print(f"----- DIG {self.ch_cfg[ch]['ch_index']} ------")
+                elif self.ch_cfg[ch]["ch_type"] == "DAC":
+                    if self.ch_cfg[ch]['ch_index'] == 1:
+                        print(f"----- DAC A -----")
+                    elif self.ch_cfg[ch]['ch_index'] == 0:
+                        print(f"----- DAC B -----")
+
+                for key, value in self.ch_cfg[ch].items():
+                    print(f"{key}: {value}")
+
+            print(f"----- End time: {self.end_time} -----")
 
     def generate_asm(self, prog, calibration=None, const_power=None, reps=1):
         """
@@ -301,111 +310,79 @@ class RfsocPulses():
         calibration : object
             RfsocCalibration object containing DAC phase alignment and SSB parameter dictionaries.
         """
+        # TODO: Remove constant power
+
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
 
         prog.declare_gen(ch=ch_index, nqz=1) # Initialise DAC channel
 
-        arb_sequence = []
-        arb_num = 0
-        stored_arb = False
         for i in range(ch_cfg[ch]["num_pulses"]):
-            if ch_cfg[ch]["mode"][i] == 'const': # Constant output mode
-                # DAC pulse length
-                length_us = ch_cfg[ch]["lengths"][i]
-                length = prog.us2cycles(length_us, gen_ch=ch_index)
-
-                # TODO: Account for arb. end time
-                # DAC pulse start time
-                time_us = ch_cfg[ch]["times"][i]
-                if i > 0:
-                    if time_us > ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1]:
-                        time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
-                    else:
-                        time = "auto"
-                else:
+            time_us = ch_cfg[ch]["times"][i]
+            if i > 0:
+                if round(time_us, 9) > round(ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1], 9):
                     time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+                else:
+                    time = "auto"
+            else:
+                time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
 
-                # DAC pulse frequency
+            if ch_cfg[ch]["styles"][i] == 'const':
                 freq_hz = ch_cfg[ch]["freqs"][i]
                 freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
 
-                # DAC pulse amplitude
-                # TODO: Make robust
-                # TODO: Temporary divide by sqrt(2) for constant amp with arb.
-                if const_power is not None:
-                    amp = int((const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))/np.sqrt(2))
-                else:
-                    amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
-                    if calibration is not None:
-                        amp = int((amp*calibration.scale_gain(freq_hz, ch_index))/np.sqrt(2))
-
-                # DAC pulse phase
                 phase_deg = ch_cfg[ch]["phases"][i]
                 if calibration is not None:
                     phase_deg += calibration.phase(freq_hz, ch_index)
                 phase = prog.deg2reg(phase_deg, gen_ch=ch_index)
 
-                # Program DAC channel with parameters and then play pulse
-                prog.set_pulse_registers(ch=ch_index, gain=amp, freq=freq, phase=phase,
-                                        style="const", length=length)
-                prog.pulse(ch=ch_index, t=time)
+                length_us = ch_cfg[ch]["lengths"][i]
+                length = prog.us2cycles(length_us, gen_ch=ch_index)
 
-            if ch_cfg[ch]["mode"][i] == 'arb': # Arbitrary output mode
-                # TODO: Deal with actual time
-                # Set frequency and phase of arb. envelope
-                # TODO: Warn that frequency is fixed
-                arb_freq = 0
-                # TODO: Add phase calibration
-                arb_phase = 0
-
-                # TODO: Include constant power calibration
-                arb_amp = ch_cfg[ch]["gain"]
-
-                # DAC pulse start time
-                time_us = ch_cfg[ch]["times"][i]
-                if i > 0:
-                    if time_us > ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1]:
-                        time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
-                    else:
-                        time = "auto"
+                # TODO: Temporary divide by 2 for constant amp with arb.
+                if const_power is not None:
+                    amp = int((const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))/2)
                 else:
-                    time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+                    amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"]/2)
+                    if calibration is not None:
+                        amp = int((amp*calibration.scale_gain(freq_hz, ch_index))/2)
 
-                idata, qdata = self.iq_data[ch]["idata"][arb_num], self.iq_data[ch]["qdata"][arb_num]
+                prog.set_pulse_registers(ch=ch_index,
+                                         gain=amp,
+                                         freq=freq,
+                                         phase=phase,
+                                         style="const",
+                                         length=length
+                                         )
+            
+            if ch_cfg[ch]["styles"][i] == 'arb':
+                # TODO: Include constant power calibration
+                amp = ch_cfg[ch]["gain"]
+                outsel=ch_cfg[ch]["outsels"][i]
 
-                # Give arb. sequence a name with incrementing index
-                arb_name = "arb" + str(arb_num)
-                arb_num += 1
+                if ch_cfg[ch]["outsels"][i] == 'product':
+                    # TODO: Add phase calibration
+                    freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
+                    phase = prog.deg2reg(0, gen_ch=ch_index)
+                elif ch_cfg[ch]["outsels"][i] == 'input':
+                    freq = 0
+                    phase = 0
 
-                # Program DAC channel with parameters and then play pulse
+                arb_name = "arb" + str(i)
+                idata = self.iq_data[ch]["idata"][i] 
+                qdata = self.iq_data[ch]["qdata"][i]
                 prog.add_envelope(ch=ch_index, name=arb_name, idata=idata, qdata=qdata)
-                prog.set_pulse_registers(ch=ch_index, gain=arb_amp, freq=arb_freq, phase=arb_phase, style="arb", waveform=arb_name, outsel="input")
-                prog.pulse(ch=ch_index, t=time)
 
-# iq sequence ------------------------------------------------------------------
+                prog.set_pulse_registers(ch=ch_index,
+                                         gain=amp,
+                                         freq=freq,
+                                         phase=phase,
+                                         style="arb",
+                                         waveform=arb_name,
+                                         outsel=outsel
+                                         )
 
-            # if ch_cfg[ch]["mode"][i] == 'iq': # Arbitrary output mode
-            #     if len(arb_sequence) == 0:
-            #         # Set frequency and phase of arb. envelope
-            #         # TODO: Warn that frequency is fixed
-            #         arb_freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
-            #         # TODO: Add ability to change phase mid-way
-            #         # TODO: Add phase calibration
-            #         arb_phase = prog.deg2reg(ch_cfg[ch]["phases"][i]-45, gen_ch=ch_index)
-
-            #         # TODO: Include constant power calibration
-            #         arb_amp = ch_cfg[ch]["gain"]
-
-            #         # DAC pulse start time
-            #         time_us = ch_cfg[ch]["times"][i]
-            #         if i > 0:
-            #             if time_us > ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1]:
-            #                 time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
-            #             else:
-            #                 time = "auto"
-            #         else:
-            #             time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+            prog.pulse(ch=ch_index, t=time)
 
     def gen_dig_seq(self, prog, ch):
         """
