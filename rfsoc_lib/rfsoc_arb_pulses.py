@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 class RfsocArbPulses():
-    def __init__(self, soccfg, sequence=None, samples=None, calibration=None, outsel='product', freq=None):
+    def __init__(self, soccfg, calibration=None, sequence=None, samples=None, outsel='product', freq=None, ch_index=None):
         """
         Constructor method.
         Initialise RfsocArbPulses object by creating IQ data samples for DAC.
@@ -16,8 +16,6 @@ class RfsocArbPulses():
             List of tuples providing pulse sequence parameters in form [(time, amp, freq, phase), ...].
         samples : list, optional
             List of amplitudes to be sampled by the DAC in form [(i_sample_0, i_sample_1, ...), (q_sample_0, q_sample_1, ...)]
-        calibration : object, optional
-            TODO
         outsel : str, optional
             DAC outsel mode. Use 'product' to provide IQ amplitude envelope and 'input' to produce arbitrary DAC samples. 'product' by default.
         freq : float, optional
@@ -64,9 +62,9 @@ class RfsocArbPulses():
         elif (sequence is not None) and (samples is not None):
             raise ValueError("Cannot simultaneously specify a pulse sequence and DAC samples")
         elif sequence is not None:
-            idata, qdata = self.gen_sequence_iqdata(sequence, outsel)
+            idata, qdata = self.gen_sequence_iqdata(sequence, outsel, calibration, ch_index)
         elif samples is not None:
-            idata, qdata = self.gen_samples_iqdata(samples, outsel)
+            idata, qdata = self.gen_samples_iqdata(samples, outsel, calibration, ch_index)
 
         # TODO: Is this needed? Uncomment if program breaks
         # if self.total_length < soccfg.cycles2us(3, gen_ch=0) * 1e3:
@@ -87,7 +85,7 @@ class RfsocArbPulses():
         self.qdata = qdata
         self.outsel = outsel
     
-    def gen_sequence_iqdata(self, sequence, outsel):
+    def gen_sequence_iqdata(self, sequence, outsel, calibration, ch_index):
         """
         Generate IQ samples from a list of tuples.
 
@@ -126,13 +124,27 @@ class RfsocArbPulses():
 
             if 0 < amp <= 1: # Producing output
                 if outsel == 'product':
+                    freq = self.freq * 1e3
                     # Calculate amp_i and amp_q from phase and gain
                     # TODO: Add phase calibration
-                    phi = params[3]
+                    if calibration is None:
+                        phi = params[3]
+                    else:
+                        phi = params[3] + calibration.phase(freq, ch_index)
+
                     dac_iq = np.round(np.e**(1j * phi * np.pi / 180), 10)
                     dac_i, dac_q = np.real(dac_iq), np.imag(dac_iq)
-                    amp_i = int(gain * amp * dac_i)
-                    amp_q = int(gain * amp * dac_q)
+
+                    if calibration is None:
+                        amp_i = int(gain * amp * dac_i)
+                        amp_q = int(gain * amp * dac_q)
+
+                    if calibration.abs_gain:
+                        amp_i = int(2 * dac_i * calibration.gain(freq, ch_index))
+                        amp_q = int(2 * dac_q * calibration.gain(freq, ch_index))
+                    else:
+                        amp_i = int(gain * amp * dac_i * calibration.scale_gain(freq, ch_index))
+                        amp_q = int(gain * amp * dac_q * calibration.scale_gain(freq, ch_index))
 
                     if params[2] != self.freq:
                         raise ValueError(f"Cannot specify frequency {params[2]} GHz as frequency is fixed to that of first pulse ({self.freq} GHz)")
@@ -148,8 +160,17 @@ class RfsocArbPulses():
 
                     # Concatenate specified sinusoid to idata and qdata
                     ts = np.arange(0, cycles, 1) / self.fs_dac
-                    y = amp * gain * np.sin(2*np.pi*freq*ts + (np.pi*phi)/180) / 2
-                    idata = np.concatenate((idata, -np.array(y)))
+                    y = np.sin(2*np.pi*freq*ts + (np.pi*phi)/180) / 2
+
+                    if calibration is None:
+                        amp_i = y * amp * gain
+
+                    if calibration.abs_gain:
+                        amp_i = 2 * y * calibration.gain(freq, ch_index)
+                    else:
+                        amp_i = y * amp * gain * calibration.scale_gain(freq, ch_index)
+                    
+                    idata = np.concatenate((idata, -np.array(amp_i)))
                     qdata = np.concatenate((qdata, np.zeros(cycles, dtype=int)))
 
             elif amp == 0: # Not producing output
@@ -162,7 +183,7 @@ class RfsocArbPulses():
         
         return idata, qdata
 
-    def gen_samples_iqdata(self, samples, outsel):
+    def gen_samples_iqdata(self, samples, outsel, calibration, ch_index):
         """
         Generate I and Q samples from raw input array.
 
@@ -183,10 +204,10 @@ class RfsocArbPulses():
         ValueError
             Magnitude of IQ samples may not exceed 32566.
         """
-        idata = -np.array(samples[0])
+        idata = np.array(samples[0])
 
         if outsel == 'product':
-            qdata = -np.array(samples[1])
+            qdata = np.array(samples[1])
         if (outsel == 'input'):
             qdata = np.zeros(len(idata), dtype=int)
             try:

@@ -1,11 +1,13 @@
 # TODO: Do not allow DAC frequencies to be different for ssb
 # TODO: Limit gain to 32566/2 if arb. included
+# TODO: Warn user that gain is ignored if abs_gain
+# TODO: Robust self.iq_mix
 
 import numpy as np
 
 class RfsocPulses():
 
-    def __init__(self, imported_seqs, ch_map=None, gains={}, delays={}, iq_mix=False, print_params=False):
+    def __init__(self, imported_seqs, calibration=None, ch_map=None, gains={}, delays={}, iq_mix=False, print_params=False):
         """
         Constructor method.
         Creates and prints dictionary containing all specified pulse sequence 
@@ -26,7 +28,11 @@ class RfsocPulses():
         print_params : bool, optional
             If True, print pulse parameters. Defaults to False.
         """
+        self.iq_mix = iq_mix
+
         self.ch_cfg = {}
+        self.pulses = {}
+        self.calibrated_pulses = {}
         self.iq_data = {}
         self.dig_seq = {}
 
@@ -38,74 +44,52 @@ class RfsocPulses():
         self.check_gains(gains) # Check gain dictionary is valid
 
         for ch, seq_params in self.pulse_seqs.items():
-            self.ch_cfg[ch] = {}
-
             self.check_ch(ch) # Check channel string is valid
-            ch_type = self.ch_cfg[ch]["ch_type"] = ch.split('_')[0]
-            ch_ref = ch.split('_')[1]
-            if ch_type == "DIG":
-                self.ch_cfg[ch]["ch_index"] = int(ch_ref)
-            elif ch_type == "DAC":
-                self.ch_cfg[ch]["ch_index"] = {'A': 1, 'B': 0}.get(ch_ref)
+            self.ch_cfg[ch] = {}
+            self.pulses[ch] = {}
 
-            # Assign specified or default gains and delays for channel
+            # ch_type, ch_index
+            self.ch_cfg[ch]["ch_type"], self.ch_cfg[ch]["ch_index"] = self.get_ch_type_index(ch)
+
+            # delay
             self.ch_cfg[ch]["delay"] = delays.get(ch, self.DEFAULT_DELAY)
-            if ch_type == "DAC":
-                self.ch_cfg[ch]["gain"] = gains.get(ch, self.DEFAULT_GAIN)
-            
-            # Create lists of pulse parameters
-            self.ch_cfg[ch].update({"lengths":[], "times":[]})
-            if ch_type ==  "DAC":
-                self.ch_cfg[ch].update({"amps":[], "freqs":[], "phases":[], "styles":[], "outsels":[]})
-                self.iq_data[ch] = {"idata":[], "qdata":[]}
 
+            # gain
+            if self.ch_cfg[ch]["ch_type"] == "DAC":
+                gain = gains.get(ch, self.DEFAULT_GAIN)
+                self.ch_cfg[ch]["gain"] = gain
+            
+            # calibrated
+            if self.ch_cfg[ch]["ch_type"] == "DAC":
+                if calibration is not None:
+                    self.ch_cfg[ch]["calibrated"] = True
+                    self.calibrated_pulses[ch] = {"gains":[], "phases":[]}
+                else:
+                    self.ch_cfg[ch]["calibrated"] = False
+            
+            # Create pulse lists
             time = 0
+            self.pulses[ch].update({"lengths":[], "times":[]})
+            if self.ch_cfg[ch]["ch_type"] ==  "DAC":
+                self.pulses[ch].update({"amps":[], "gains":[], "freqs":[], "phases":[], "styles":[], "outsels":[]})
+                self.iq_data[ch] = {"idata":[], "qdata":[]}
             for params in seq_params:
                 if isinstance(params, tuple): # Regular pulse
                     self.check_params(ch, params)
                     length_ns = params[0]
-
-                    if bool(params[1]) == True: # A pulse exists
-                        self.ch_cfg[ch]["times"].append(float(time/1e3)) # Trigger time [us]
-                        self.ch_cfg[ch]["lengths"].append(float(length_ns/1e3)) # Pulse durations [us]
-
-                        if ch_type == "DAC":
-                            self.ch_cfg[ch]["amps"].append(float(params[1])) # DAC amplitude
-                            self.ch_cfg[ch]["freqs"].append(np.round(float(params[2]*1e3), 6)) # DAC frequency [Hz]
-                            self.ch_cfg[ch]["styles"].append('const')
-                            self.ch_cfg[ch]["outsels"].append(None)
-                            self.iq_data[ch]["idata"].append(None)
-                            self.iq_data[ch]["qdata"].append(None)
-
-                            # Enable simple IQ mixing
-                            if iq_mix == True and ch_ref == 'B':
-                                self.ch_cfg[ch]["phases"].append(float(params[3] - 90)) # DAC phase [deg]
-                            else:
-                                self.ch_cfg[ch]["phases"].append(float(params[3])) # DAC phase [deg]
-
+                    self.assign_pulse_params(params, ch, time, calibration)
                 else: # Arb. pulse
                     length_ns = params.total_length
-
-                    self.ch_cfg[ch]["times"].append(float(time/1e3))
-                    self.ch_cfg[ch]["lengths"].append(float(length_ns/1e3))
-                    self.ch_cfg[ch]["amps"].append('arb')
-                    self.ch_cfg[ch]["phases"].append('arb')
-                    self.ch_cfg[ch]["styles"].append('arb')
-                    self.ch_cfg[ch]["outsels"].append(params.outsel)
-                    self.iq_data[ch]["idata"].append(params.idata)
-                    self.iq_data[ch]["qdata"].append(params.qdata)
-
-                    if params.freq is not None:
-                        self.ch_cfg[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
-                    else:
-                        self.ch_cfg[ch]["freqs"].append(params.outsel)
-
+                    self.assign_arb_params(params, ch, time)
                 time += length_ns
                 
-            self.ch_cfg[ch]["num_pulses"] = len(self.ch_cfg[ch]["lengths"]) # Number of pulses
+            # num_pulses, duration
+            self.ch_cfg[ch]["num_pulses"] = len(self.pulses[ch]["lengths"]) # Number of pulses
             self.ch_cfg[ch]["duration"] = time/1e3 # End time of sequence [us]
 
+        # end_time
         self.end_time = self.get_end_time()
+
         self.print_params(print_params)
 
     def map_seqs(self, imported_seqs, ch_map):
@@ -190,6 +174,30 @@ class RfsocPulses():
             if not isinstance(delay, int):
                 raise TypeError(f"{ch} delay '{delay}' not integer number of clock cycles")
 
+    def get_ch_type_index(self, ch):
+        """
+        _summary_
+
+        Parameters
+        ----------
+        ch : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        ch_type = self.ch_cfg[ch]["ch_type"] = ch.split('_')[0]
+        ch_ref = ch.split('_')[1]
+
+        if ch_type == "DIG":
+            ch_index = int(ch_ref)
+        elif ch_type == "DAC":
+            ch_index = {'A': 1, 'B': 0}.get(ch_ref)
+        
+        return ch_type, ch_index
+    
     def check_params(self, ch, params):
         """
         Check if the correct number of parameters have been specified for each 
@@ -226,6 +234,88 @@ class RfsocPulses():
         for param in params:
             if not isinstance(param, (float, int)):
                 raise ValueError(f"Parameter {param} is a {type(param)}. Must be a float or int")
+    
+    def assign_pulse_params(self, params, ch, time, calibration):
+        """
+        _summary_
+
+        Parameters
+        ----------
+        params : _type_
+            _description_
+        ch : _type_
+            _description_
+        time : _type_
+            _description_
+        calibration : _type_
+            _description_
+        """
+        if bool(params[1]) == True: # A pulse exists
+            self.pulses[ch]["times"].append(float(time/1e3)) # Trigger time [us]
+            self.pulses[ch]["lengths"].append(float(params[0]/1e3)) # Pulse durations [us]
+
+            if self.ch_cfg[ch]["ch_type"] == "DAC":
+                ch_index = self.ch_cfg[ch]["ch_index"]
+                freq = np.round(float(params[2]*1e3), 6)
+
+                self.pulses[ch]["amps"].append(float(params[1])) # DAC amplitude
+                self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"] * self.pulses[ch]["amps"][-1]))
+                self.pulses[ch]["freqs"].append(freq) # DAC frequency [Hz]
+                self.pulses[ch]["styles"].append('const')
+
+                self.pulses[ch]["outsels"].append(None)
+                self.iq_data[ch]["idata"].append(None)
+                self.iq_data[ch]["qdata"].append(None)
+
+                # Enable simple IQ mixing
+                if self.iq_mix == True and ch_index == 0:
+                    phase = float(params[3] - 90)
+                else:
+                    phase = float(params[3])
+                self.pulses[ch]["phases"].append(phase) # DAC phase [deg]
+                
+                if self.ch_cfg[ch]["calibrated"]:
+                    self.calibrated_pulses[ch]["phases"].append(round(phase + calibration.phase(freq, ch_index), 4))
+
+                    if calibration.abs_gain:
+                        self.calibrated_pulses[ch]["gains"].append(int(calibration.gain(freq, ch_index)))
+                    else:
+                        self.calibrated_pulses[ch]["gains"].append(int(self.pulses[ch]["gains"][-1] * calibration.scale_gain(freq, ch_index)))
+
+    def assign_arb_params(self, params, ch, time):
+        """
+        _summary_
+
+        Parameters
+        ----------
+        params : _type_
+            _description_
+        ch : _type_
+            _description_
+        time : _type_
+            _description_
+        """
+        self.pulses[ch]["times"].append(float(time/1e3))
+        self.pulses[ch]["lengths"].append(float(params.total_length/1e3))
+        self.pulses[ch]["gains"].append(int(32766))
+        self.pulses[ch]["outsels"].append(params.outsel)
+        self.pulses[ch]["styles"].append('arb')
+
+        self.pulses[ch]["amps"].append(None)
+        self.pulses[ch]["phases"].append(None)
+
+        # TODO: Check this
+        if params.freq is not None:
+            self.pulses[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
+        else:
+            self.pulses[ch]["freqs"].append(params.outsel)
+
+        if self.ch_cfg[ch]["calibrated"]:
+            self.calibrated_pulses[ch]["phases"].append(0.0)
+            self.calibrated_pulses[ch]["gains"].append(int(32766))
+
+        self.iq_data[ch]["idata"].append(params.idata)
+        self.iq_data[ch]["qdata"].append(params.qdata)
 
     def get_end_time(self):
         """
@@ -252,19 +342,29 @@ class RfsocPulses():
         if enabled:
             for ch in self.pulse_seqs:
                 if self.ch_cfg[ch]["ch_type"] == "DIG":
-                    print(f"----- DIG {self.ch_cfg[ch]['ch_index']} ------")
+                    print(f"---------- DIG {self.ch_cfg[ch]['ch_index']} ----------")
                 elif self.ch_cfg[ch]["ch_type"] == "DAC":
                     if self.ch_cfg[ch]['ch_index'] == 1:
-                        print(f"----- DAC A -----")
+                        print(f"---------- DAC A ----------")
                     elif self.ch_cfg[ch]['ch_index'] == 0:
-                        print(f"----- DAC B -----")
+                        print(f"---------- DAC B ----------")
 
+                print("CONFIG")
                 for key, value in self.ch_cfg[ch].items():
-                    print(f"{key}: {value}")
+                    print(f"\t{key}: {value}")
+                
+                print("PULSES")
+                for key, value in self.pulses[ch].items():
+                    print(f"\t{key}: {value}")
 
-            print(f"----- End time: {self.end_time} -----")
+                if (self.ch_cfg[ch]["ch_type"] == "DAC") and (self.ch_cfg[ch]["calibrated"]):
+                    print("CALIBRATION")
+                    for key, value in self.calibrated_pulses[ch].items():
+                        print(f"\t{key}: {value}")
+                print("")
+            print(f"END TIME: {self.end_time}")
 
-    def generate_asm(self, prog, calibration=None, reps=1):
+    def generate_asm(self, prog, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -273,8 +373,6 @@ class RfsocPulses():
         ----------
         prog : class
             Instructions to be executed by tproc.
-        calibration : object, optional
-            RfsocCalibration object containing DAC phase alignment and SSB parameter dictionaries, by default None.
         reps : int, optional
             Number of times the pulse sequence is to be repeated. Defaults to 1.
         """
@@ -286,7 +384,7 @@ class RfsocPulses():
 
         for ch in ch_cfg:
             if ch_cfg[ch]["ch_type"] == "DAC":
-                self.gen_dac_asm(prog, ch, calibration)
+                self.gen_dac_asm(prog, ch)
             elif ch_cfg[ch]["ch_type"] == "DIG":
                 self.gen_dig_seq(prog, ch)
 
@@ -298,7 +396,7 @@ class RfsocPulses():
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
 
-    def gen_dac_asm(self, prog, ch, calibration):
+    def gen_dac_asm(self, prog, ch):
         """
         DAC specific assembly instructions for use in generate_asm()
 
@@ -308,88 +406,61 @@ class RfsocPulses():
             Instructions to be executed on tproc.
         ch : str
             Name of generator channel.
-        calibration : object
-            RfsocCalibration object containing DAC phase alignment and SSB parameter dictionaries.
         """
-        ch_cfg = self.ch_cfg
-        ch_index = ch_cfg[ch]["ch_index"]
+        ch_cfg = self.ch_cfg[ch]
+        pulses = self.pulses[ch]
+        calibrated_pulses = self.calibrated_pulses[ch]
 
-        prog.declare_gen(ch=ch_index, nqz=1) # Initialise DAC channel
+        ch_index = ch_cfg["ch_index"]
 
-        for i in range(ch_cfg[ch]["num_pulses"]):
-            time_us = ch_cfg[ch]["times"][i]
+        # Initialise DAC
+        prog.declare_gen(ch=ch_index, nqz=1) 
+
+        for i in range(ch_cfg["num_pulses"]):
+            # Time
+            time_us = pulses["times"][i]
             if i > 0:
-                if round(time_us, 9) > round(ch_cfg[ch]["times"][i-1] + ch_cfg[ch]["lengths"][i-1], 9):
-                    time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+                if round(time_us, 9) > round(pulses["times"][i-1] + pulses["lengths"][i-1], 9):
+                    time = prog.us2cycles(time_us) + ch_cfg["delay"]
                 else:
                     time = "auto"
             else:
-                time = prog.us2cycles(time_us) + ch_cfg[ch]["delay"]
+                time = prog.us2cycles(time_us) + ch_cfg["delay"]
+            # Freq
+            freq = prog.freq2reg(pulses["freqs"][i], gen_ch=ch_index)
+            # Gain
+            if not ch_cfg["calibrated"]:
+                gain = pulses["gains"][i]
+            else:
+                gain = calibrated_pulses["gains"][i]
 
-            if ch_cfg[ch]["styles"][i] == 'const':
-                freq_hz = ch_cfg[ch]["freqs"][i]
-                freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
-
-                phase_deg = ch_cfg[ch]["phases"][i]
-                if calibration is not None:
-                    phase_deg += calibration.phase(freq_hz, ch_index)
+            # Style specific
+            if pulses["styles"][i] == 'const':
+                # Phase
+                if not ch_cfg["calibrated"]:
+                    phase_deg = pulses["phases"][i]
+                else:
+                    phase_deg = calibrated_pulses["phases"][i]
                 phase = prog.deg2reg(phase_deg, gen_ch=ch_index)
-
-                length_us = ch_cfg[ch]["lengths"][i]
+                # Length
+                length_us = pulses["lengths"][i]
                 length = prog.us2cycles(length_us, gen_ch=ch_index)
-
-                pulse_gain = (ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
-                if calibration is None:
-                    amp = int(pulse_gain)
-                else:
-                    if calibration.abs_gain:
-                        # TODO: Warn that gain is fixed
-                        amp = int(calibration.gain(freq_hz, ch_index))
-                    else:
-                        amp = int(pulse_gain * calibration.scale_gain(freq_hz, ch_index))
-
-                prog.set_pulse_registers(ch=ch_index,
-                                         gain=amp,
-                                         freq=freq,
-                                         phase=phase,
-                                         style="const",
-                                         length=length
-                                         )
-            
-            if ch_cfg[ch]["styles"][i] == 'arb':
-                # TODO: Include constant power calibration
-                outsel=ch_cfg[ch]["outsels"][i]
-
-                # TODO: Add phase calibration
-                # TODO: Add amplitude calibration
-                freq_hz = ch_cfg[ch]["freqs"][i]
-                freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
-
+                # Program registers
+                prog.set_pulse_registers(ch=ch_index, gain=gain, freq=freq, phase=phase, style="const", length=length)
+            elif pulses["styles"][i] == 'arb':
+                # Phase
                 phase = prog.deg2reg(0, gen_ch=ch_index)
-
-                pulse_gain = ch_cfg[ch]["gain"]
-                if (calibration is None) or (freq_hz == 0):
-                    amp = int(pulse_gain * 2)
-                else:
-                    if calibration.abs_gain:
-                        amp = int(calibration.gain(freq_hz, ch_index) * 2)
-                    else:
-                        amp = int(pulse_gain * calibration.scale_gain(freq_hz, ch_index) * 2)
-
+                # Outsel
+                outsel = pulses["outsels"][i]
+                # IQ data
                 arb_name = "arb" + str(i)
                 idata = self.iq_data[ch]["idata"][i] 
                 qdata = self.iq_data[ch]["qdata"][i]
+                # Program registers
                 prog.add_envelope(ch=ch_index, name=arb_name, idata=idata, qdata=qdata)
+                prog.set_pulse_registers(ch=ch_index, gain=gain, freq=freq, phase=phase, style="arb", waveform=arb_name, outsel=outsel)
 
-                prog.set_pulse_registers(ch=ch_index,
-                                         gain=amp,
-                                         freq=freq,
-                                         phase=phase,
-                                         style="arb",
-                                         waveform=arb_name,
-                                         outsel=outsel
-                                         )
-
+            # Play DAC pulse
             prog.pulse(ch=ch_index, t=time)
 
     def gen_dig_seq(self, prog, ch):
@@ -403,22 +474,21 @@ class RfsocPulses():
         ch : str
             Name of generator channel.
         """
-        ch_cfg = self.ch_cfg
-        ch_index = ch_cfg[ch]["ch_index"]
+        ch_cfg = self.ch_cfg[ch]
+        pulses = self.pulses[ch]
 
-        for i in range(ch_cfg[ch]["num_pulses"]):
+        ch_index = ch_cfg["ch_index"]
+
+        for i in range(ch_cfg["num_pulses"]):
             # DIG pulse length 
-            length = prog.us2cycles(ch_cfg[ch]["lengths"][i])
-
+            length = prog.us2cycles(pulses["lengths"][i])
             # DIG pulse start time
-            time = prog.us2cycles(ch_cfg[ch]["times"][i]) + ch_cfg[ch]["delay"]
-
+            time = prog.us2cycles(pulses["times"][i]) + ch_cfg["delay"]
             # Add beginning of DIG pulse
             if time in self.dig_seq:
                 self.dig_seq[time].append((ch_index, True))
             else:
                 self.dig_seq[time] = [(ch_index, True)]
-
             # Add end of DIG pulse
             if time+length in self.dig_seq:
                 self.dig_seq[time+length].append((ch_index, False))
