@@ -6,7 +6,7 @@
 import bisect
 
 class RfsocCalibration():
-    def __init__(self, dac_phis, ssb_params=None):
+    def __init__(self, dac_phis, ssb_params=None, const_power=None):
         """
         Constructor method.
         Creates object containing DAC phase alignment and SSB parameter dictionaries.
@@ -17,12 +17,20 @@ class RfsocCalibration():
             Calibrated DAC phase alignment dictionary.
         ssb_params : dict, optional
             Calibrated SSB paramater dictionary, by default None.
+        const_power : dict, optional
+            Calibrated constant frequency-dependent ouptut power dictionary, by default None.
         """
         self.dac_phis = dac_phis
         self.ssb_params = ssb_params
+        self.const_power = const_power
 
         self.DEFAULT_PHI = 0
         self.DEFAULT_GAIN_FACTOR = 1
+
+        if self.const_power is None:
+            self.abs_gain = False
+        else:
+            self.abs_gain = True
     
     def phase(self, freq, ch_index):
         """
@@ -88,6 +96,12 @@ class RfsocCalibration():
                 ssb_gain = self.interpolate_param(ssb_gains, freq)
                 gain_factor = ssb_gain / self.ssb_params["default_gain"]
                 return gain_factor
+    
+    def gain(self, freq, ch_index):
+        
+        gain = int(self.const_power[freq] * self.scale_gain(freq, ch_index))
+
+        return gain
     
     def interpolate_param(self, param_dict, freq, dac_phi=False):
         """

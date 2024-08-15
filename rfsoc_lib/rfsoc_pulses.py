@@ -263,7 +263,7 @@ class RfsocPulses():
 
             print(f"----- End time: {self.end_time} -----")
 
-    def generate_asm(self, prog, calibration=None, const_power=None, reps=1):
+    def generate_asm(self, prog, calibration=None, reps=1):
         """
         Generate tproc assembly that produces appropriately timed pulses 
         according to parameters specified in parsed lists.
@@ -285,7 +285,7 @@ class RfsocPulses():
 
         for ch in ch_cfg:
             if ch_cfg[ch]["ch_type"] == "DAC":
-                self.gen_dac_asm(prog, ch, calibration, const_power)
+                self.gen_dac_asm(prog, ch, calibration)
             elif ch_cfg[ch]["ch_type"] == "DIG":
                 self.gen_dig_seq(prog, ch)
 
@@ -297,7 +297,7 @@ class RfsocPulses():
         prog.loopnz(0, 14, "LOOP_I") # End of internal loop
         prog.end()
 
-    def gen_dac_asm(self, prog, ch, calibration, const_power):
+    def gen_dac_asm(self, prog, ch, calibration):
         """
         DAC specific assembly instructions for use in generate_asm()
 
@@ -339,13 +339,14 @@ class RfsocPulses():
                 length_us = ch_cfg[ch]["lengths"][i]
                 length = prog.us2cycles(length_us, gen_ch=ch_index)
 
-                # TODO: Temporary divide by 2 for constant amp with arb.
-                if const_power is not None:
-                    amp = int((const_power[freq_hz] * calibration.scale_gain(freq_hz, ch_index))/2)
+                pulse_gain = (ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"]) / 2 # Div. 2 for const. amp. with arb.
+                if calibration is None:
+                    amp = int(pulse_gain)
                 else:
-                    amp = int(ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"]/2)
-                    if calibration is not None:
-                        amp = int((amp*calibration.scale_gain(freq_hz, ch_index))/2)
+                    if calibration.abs_gain:
+                        amp = int(calibration.gain(freq_hz, ch_index))
+                    else:
+                        amp = int(pulse_gain * calibration.scale_gain(freq_hz, ch_index))
 
                 prog.set_pulse_registers(ch=ch_index,
                                          gain=amp,
