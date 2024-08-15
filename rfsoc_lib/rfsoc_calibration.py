@@ -6,7 +6,7 @@
 import bisect
 
 class RfsocCalibration():
-    def __init__(self, dac_phis, ssb_params=None, const_power=None):
+    def __init__(self, dac_phis, ssb_params=None, const_power=None, gain_factor=1):
         """
         Constructor method.
         Creates object containing DAC phase alignment and SSB parameter dictionaries.
@@ -25,7 +25,7 @@ class RfsocCalibration():
         self.const_power = const_power
 
         self.DEFAULT_PHI = 0
-        self.DEFAULT_GAIN_FACTOR = 1
+        self.gain_factor = gain_factor
 
         if self.const_power is None:
             self.abs_gain = False
@@ -85,19 +85,22 @@ class RfsocCalibration():
             Gain scale factor.
         """
         if self.ssb_params is None:
-            return self.DEFAULT_GAIN_FACTOR
+            return self.gain_factor
         
         else:
             ssb_gains = dict(sorted(self.ssb_params["gains"].items()))
             if ch_index == 0:
-                return self.DEFAULT_GAIN_FACTOR
+                return self.gain_factor
             
             if ch_index == 1:
                 ssb_gain = self.interpolate_param(ssb_gains, freq)
-                gain_factor = ssb_gain / self.ssb_params["default_gain"]
-                return gain_factor
+                scale_gain = ssb_gain * self.gain_factor / self.ssb_params["default_gain"]
+                return scale_gain
     
     def gain(self, freq, ch_index):
+
+        if self.const_power is None:
+            raise ValueError("Cannot return absolute gain as const_power not specified when initialising calibraiton object")
         
         gain = int(self.const_power[freq] * self.scale_gain(freq, ch_index))
 

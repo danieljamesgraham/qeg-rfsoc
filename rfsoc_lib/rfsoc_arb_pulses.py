@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 class RfsocArbPulses():
-    def __init__(self, soccfg, sequence=None, samples=None, outsel='product', freq=None):
+    def __init__(self, soccfg, sequence=None, samples=None, calibration=None, outsel='product', freq=None):
         """
         Constructor method.
         Initialise RfsocArbPulses object by creating IQ data samples for DAC.
@@ -16,6 +16,8 @@ class RfsocArbPulses():
             List of tuples providing pulse sequence parameters in form [(time, amp, freq, phase), ...].
         samples : list, optional
             List of amplitudes to be sampled by the DAC in form [(i_sample_0, i_sample_1, ...), (q_sample_0, q_sample_1, ...)]
+        calibration : object, optional
+            TODO
         outsel : str, optional
             DAC outsel mode. Use 'product' to provide IQ amplitude envelope and 'input' to produce arbitrary DAC samples. 'product' by default.
         freq : float, optional
@@ -33,20 +35,28 @@ class RfsocArbPulses():
         self.fs_dac = soccfg['gens'][0]['fs'] # 9830.4 MHz
 
         # Assign LO frequency
-        if outsel == 'product':
-            try:
-                self.freq = sequence[0][2] # Frequency is fixed at the first value
-            except TypeError:
-                if freq is not None:
-                    self.freq = freq
-                else:
-                    raise ValueError("Must specify frequency as an argument")
-        elif outsel == 'input':
-            if freq is not None:
-                print("WARNING: frequency has been specified as an argument but is ignored for outsel='input' pulses")
+        # if outsel == 'product':
+        #     try:
+        #         self.freq = sequence[0][2] # Frequency is fixed at the first value
+        #     except TypeError:
+        #         if freq is not None:
+        #             self.freq = freq
+        #         else:
+        #             raise ValueError("Must specify frequency as an argument")
+        # elif outsel == 'input':
+        #     if freq is not None:
+        #         print("WARNING: frequency has been specified as an argument but is ignored for outsel='input' pulses")
+        #     self.freq = 0
+        # else:
+        #     raise TypeError(f"Outsel {outsel} must be 'product' or 'input'")
+
+        # TODO: Make robust
+        if (samples is not None) and (freq is None):
             self.freq = 0
+        elif freq is None:
+            self.freq = sequence[0][2]
         else:
-            raise TypeError(f"Outsel {outsel} must be 'product' or 'input'")
+            self.freq = freq
 
         # Generate IQ data
         if (sequence is None) and (samples is None):

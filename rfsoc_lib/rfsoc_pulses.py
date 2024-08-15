@@ -1,4 +1,5 @@
 # TODO: Do not allow DAC frequencies to be different for ssb
+# TODO: Limit gain to 32566/2 if arb. included
 
 import numpy as np
 
@@ -310,8 +311,6 @@ class RfsocPulses():
         calibration : object
             RfsocCalibration object containing DAC phase alignment and SSB parameter dictionaries.
         """
-        # TODO: Remove constant power
-
         ch_cfg = self.ch_cfg
         ch_index = ch_cfg[ch]["ch_index"]
 
@@ -339,11 +338,12 @@ class RfsocPulses():
                 length_us = ch_cfg[ch]["lengths"][i]
                 length = prog.us2cycles(length_us, gen_ch=ch_index)
 
-                pulse_gain = (ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"]) / 2 # Div. 2 for const. amp. with arb.
+                pulse_gain = (ch_cfg[ch]["amps"][i] * ch_cfg[ch]["gain"])
                 if calibration is None:
                     amp = int(pulse_gain)
                 else:
                     if calibration.abs_gain:
+                        # TODO: Warn that gain is fixed
                         amp = int(calibration.gain(freq_hz, ch_index))
                     else:
                         amp = int(pulse_gain * calibration.scale_gain(freq_hz, ch_index))
@@ -358,12 +358,23 @@ class RfsocPulses():
             
             if ch_cfg[ch]["styles"][i] == 'arb':
                 # TODO: Include constant power calibration
-                amp = ch_cfg[ch]["gain"]
                 outsel=ch_cfg[ch]["outsels"][i]
 
                 # TODO: Add phase calibration
-                freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
+                # TODO: Add amplitude calibration
+                freq_hz = ch_cfg[ch]["freqs"][i]
+                freq = prog.freq2reg(freq_hz, gen_ch=ch_index)
+
                 phase = prog.deg2reg(0, gen_ch=ch_index)
+
+                pulse_gain = ch_cfg[ch]["gain"]
+                if (calibration is None) or (freq_hz == 0):
+                    amp = int(pulse_gain * 2)
+                else:
+                    if calibration.abs_gain:
+                        amp = int(calibration.gain(freq_hz, ch_index) * 2)
+                    else:
+                        amp = int(pulse_gain * calibration.scale_gain(freq_hz, ch_index) * 2)
 
                 arb_name = "arb" + str(i)
                 idata = self.iq_data[ch]["idata"][i] 
