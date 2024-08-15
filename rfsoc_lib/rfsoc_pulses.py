@@ -360,13 +360,9 @@ class RfsocPulses():
                 amp = ch_cfg[ch]["gain"]
                 outsel=ch_cfg[ch]["outsels"][i]
 
-                if ch_cfg[ch]["outsels"][i] == 'product':
-                    # TODO: Add phase calibration
-                    freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
-                    phase = prog.deg2reg(0, gen_ch=ch_index)
-                elif ch_cfg[ch]["outsels"][i] == 'input':
-                    freq = 0
-                    phase = 0
+                # TODO: Add phase calibration
+                freq = prog.freq2reg(ch_cfg[ch]["freqs"][i], gen_ch=ch_index)
+                phase = prog.deg2reg(0, gen_ch=ch_index)
 
                 arb_name = "arb" + str(i)
                 idata = self.iq_data[ch]["idata"][i] 
