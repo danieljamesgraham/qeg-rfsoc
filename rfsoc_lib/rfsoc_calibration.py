@@ -1,12 +1,13 @@
-# TODO: print("WARNING: No phase offset has been specified")
-# TODO: raise KeyError("Must include DAC calibration dac_phis for SSB")
-# TODO: print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
-# TODO: raise ValueError("DAC gains must be equal for SSB")
+# TODO: Raises and warnings
+# print("WARNING: No phase offset has been specified")
+# raise KeyError("Must include DAC calibration dac_phis for SSB")
+# print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
+# raise ValueError("DAC gains must be equal for SSB")
 
 import bisect
 
 class RfsocCalibration():
-    def __init__(self, dac_phis, ssb_params=None):
+    def __init__(self, dac_phis, ssb_params=None, const_power=None, gain_factor=1):
         """
         Constructor method.
         Creates object containing DAC phase alignment and SSB parameter dictionaries.
@@ -17,12 +18,20 @@ class RfsocCalibration():
             Calibrated DAC phase alignment dictionary.
         ssb_params : dict, optional
             Calibrated SSB paramater dictionary, by default None.
+        const_power : dict, optional
+            Calibrated constant frequency-dependent ouptut power dictionary, by default None.
+        gain_factor : float, optional
+            Multiplicative DAC gain.
         """
         self.dac_phis = dac_phis
         self.ssb_params = ssb_params
+        self.const_power = const_power
+        self.gain_factor = gain_factor
 
-        self.DEFAULT_PHI = 0
-        self.DEFAULT_GAIN_FACTOR = 1
+        if self.const_power is None:
+            self.abs_gain = False
+        else:
+            self.abs_gain = True
     
     def phase(self, freq, ch_index):
         """
@@ -40,6 +49,8 @@ class RfsocCalibration():
         float
             Calibrated phase [deg.].
         """
+        default_phi = 0
+
         if ch_index == 0:
             # DAC calibration phase
             dac_phis = dict(sorted(self.dac_phis.items()))
@@ -58,7 +69,7 @@ class RfsocCalibration():
             return phi
         
         if ch_index == 1:
-            return self.DEFAULT_PHI
+            return default_phi
     
     def scale_gain(self, freq, ch_index):
         """
@@ -77,17 +88,46 @@ class RfsocCalibration():
             Gain scale factor.
         """
         if self.ssb_params is None:
-            return self.DEFAULT_GAIN_FACTOR
+            return self.gain_factor
         
         else:
             ssb_gains = dict(sorted(self.ssb_params["gains"].items()))
             if ch_index == 0:
-                return self.DEFAULT_GAIN_FACTOR
+                return self.gain_factor
             
             if ch_index == 1:
                 ssb_gain = self.interpolate_param(ssb_gains, freq)
-                gain_factor = ssb_gain / self.ssb_params["default_gain"]
-                return gain_factor
+                scale_gain = ssb_gain * self.gain_factor / self.ssb_params["default_gain"]
+                return scale_gain
+    
+    def gain(self, freq, ch_index):
+        """
+        Provides absolute gain (may be scaled by gain_factor) for power-calibrated SSB.
+
+        Parameters
+        ----------
+        freq : float
+            Pulse frequency.
+        ch_index : int
+            DAC channel index.
+
+        Returns
+        -------
+        int
+            Absolute gain for power-calibrated SSB.
+
+        Raises
+        ------
+        ValueError
+            const_power not specified when initialising calibration object.
+        """
+
+        if self.const_power is None:
+            raise ValueError("Cannot return absolute gain as const_power not specified when initialising calibraiton object")
+        
+        gain = int(self.const_power[freq] * self.scale_gain(freq, ch_index))
+
+        return gain
     
     def interpolate_param(self, param_dict, freq, dac_phi=False):
         """
