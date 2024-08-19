@@ -315,16 +315,11 @@ class RfsocPulses():
         self.pulses[ch]["lengths"].append(float(params.total_length/1e3))
         self.pulses[ch]["gains"].append(int(32766))
         self.pulses[ch]["outsels"].append(params.outsel)
+        self.pulses[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
         self.pulses[ch]["styles"].append('arb')
 
         self.pulses[ch]["amps"].append(None)
         self.pulses[ch]["phases"].append(None)
-
-        # TODO: Check this
-        if params.freq is not None:
-            self.pulses[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
-        else:
-            self.pulses[ch]["freqs"].append(params.outsel)
 
         if self.ch_cfg[ch]["calibrated"]:
             self.calibrated_pulses[ch]["phases"].append(0.0)

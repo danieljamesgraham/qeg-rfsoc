@@ -40,10 +40,10 @@ class RfsocArbPulses():
         self.fs_dac = soccfg['gens'][0]['fs'] # 9830.4 MHz
 
         # Assign frequency
-        if samples is not None:
-            self.freq = 0
-        elif sequence is not None:
+        if (sequence is not None) and (outsel == 'product'):
             self.freq = sequence[0][2] # Frequency is fixed at the first value
+        else:
+            self.freq = 0
 
         # Generate IQ data
         if (sequence is None) and (samples is None):
