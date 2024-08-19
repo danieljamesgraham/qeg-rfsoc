@@ -1,7 +1,8 @@
-# TODO: print("WARNING: No phase offset has been specified")
-# TODO: raise KeyError("Must include DAC calibration dac_phis for SSB")
-# TODO: print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
-# TODO: raise ValueError("DAC gains must be equal for SSB")
+# TODO: Raises and warnings
+# print("WARNING: No phase offset has been specified")
+# raise KeyError("Must include DAC calibration dac_phis for SSB")
+# print(f"WARNING: pulse phase {phase_deg} is ignored for SSB")
+# raise ValueError("DAC gains must be equal for SSB")
 
 import bisect
 
@@ -19,12 +20,12 @@ class RfsocCalibration():
             Calibrated SSB paramater dictionary, by default None.
         const_power : dict, optional
             Calibrated constant frequency-dependent ouptut power dictionary, by default None.
+        gain_factor : float, optional
+            Multiplicative DAC gain.
         """
         self.dac_phis = dac_phis
         self.ssb_params = ssb_params
         self.const_power = const_power
-
-        self.DEFAULT_PHI = 0
         self.gain_factor = gain_factor
 
         if self.const_power is None:
@@ -48,6 +49,8 @@ class RfsocCalibration():
         float
             Calibrated phase [deg.].
         """
+        default_phi = 0
+
         if ch_index == 0:
             # DAC calibration phase
             dac_phis = dict(sorted(self.dac_phis.items()))
@@ -66,7 +69,7 @@ class RfsocCalibration():
             return phi
         
         if ch_index == 1:
-            return self.DEFAULT_PHI
+            return default_phi
     
     def scale_gain(self, freq, ch_index):
         """
@@ -98,6 +101,26 @@ class RfsocCalibration():
                 return scale_gain
     
     def gain(self, freq, ch_index):
+        """
+        Provides absolute gain (may be scaled by gain_factor) for power-calibrated SSB.
+
+        Parameters
+        ----------
+        freq : float
+            Pulse frequency.
+        ch_index : int
+            DAC channel index.
+
+        Returns
+        -------
+        int
+            Absolute gain for power-calibrated SSB.
+
+        Raises
+        ------
+        ValueError
+            const_power not specified when initialising calibration object.
+        """
 
         if self.const_power is None:
             raise ValueError("Cannot return absolute gain as const_power not specified when initialising calibraiton object")
