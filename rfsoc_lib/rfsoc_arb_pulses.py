@@ -2,11 +2,15 @@
 # print("WARNING: frequency has been specified as an argument but is ignored for outsel='input' pulses")
 # raise TypeError(f"Outsel {outsel} must be 'product' or 'input'")
 
+# TODO: Const. power renormalisation
+# TODO: Default gain
+# TODO: Null at end not recognised
+
 import numpy as np
 import math
 
 class RfsocArbPulses():
-    def __init__(self, soccfg, sequence=None, samples=None, calibration=None, ch_index=None, outsel='product'):
+    def __init__(self, soccfg, sequence=None, samples=None, calibration=None, ch_index=None, outsel='product', freq=None):
         """
         Constructor method.
         Initialise RfsocArbPulses object by creating IQ data samples for DAC.
@@ -41,7 +45,15 @@ class RfsocArbPulses():
 
         # Assign frequency
         if (sequence is not None) and (outsel == 'product'):
-            self.freq = sequence[0][2] # Frequency is fixed at the first value
+            i = 0
+            while True:
+                try:
+                    self.freq = sequence[i][2] # Frequency is fixed at the first value
+                    break
+                except IndexError:
+                    i += 1
+        elif (samples is not None) and (outsel == 'product'):
+            self.freq = freq
         else:
             self.freq = 0
 
@@ -100,7 +112,7 @@ class RfsocArbPulses():
         ValueError
             Amplitude of pulses must lie between 0 and 1.
         """
-        gain = 32766
+        # gain = 32766
 
         idata, qdata = np.array([]), np.array([])
         total_length = 0
@@ -129,38 +141,46 @@ class RfsocArbPulses():
                     dac_i, dac_q = np.real(dac_iq), np.imag(dac_iq)
 
                     if calibration is None:
-                        amp_i = int(gain * amp * dac_i)
-                        amp_q = int(gain * amp * dac_q)
+                        # gain
+                        amp_i = amp * dac_i
+                        amp_q = amp * dac_q
                     elif calibration.abs_gain:
-                        amp_i = int(2 * dac_i * calibration.gain(freq, ch_index))
-                        amp_q = int(2 * dac_q * calibration.gain(freq, ch_index))
+                        # 2 * 
+                        amp_i = 2 * dac_i * calibration.gain(freq, ch_index)
+                        amp_q = 2 * dac_q * calibration.gain(freq, ch_index)
                     else:
-                        amp_i = int(gain * amp * dac_i * calibration.scale_gain(freq, ch_index))
-                        amp_q = int(gain * amp * dac_q * calibration.scale_gain(freq, ch_index))
+                        # gain
+                        amp_i = amp * dac_i * calibration.scale_gain(freq, ch_index)
+                        amp_q = amp * dac_q * calibration.scale_gain(freq, ch_index)
 
                     if (params[2] != self.freq) and (calibration is not None):
                         raise ValueError(f"Cannot specify frequency {params[2]} GHz as frequency is fixed to that of first pulse ({self.freq} GHz)")
 
                     # Concatenate appropriate number of amp_i and amp_q to idata and qdata
-                    idata = np.concatenate((idata, np.full(shape=cycles, fill_value=amp_i, dtype=int)))
-                    qdata = np.concatenate((qdata, np.full(shape=cycles, fill_value=amp_q, dtype=int)))
+                    idata = np.concatenate((idata, np.full(shape=cycles, fill_value=amp_i, dtype=float)))
+                    qdata = np.concatenate((qdata, np.full(shape=cycles, fill_value=amp_q, dtype=float)))
 
                 if outsel == 'input':
-                    # NOTE: Phase calibration is not needed in principle but phases
-                    # are not aligned due to DAC jitter
                     freq = params[2] * 1e3
                     phi = params[3]
+
+                    if calibration is not None:
+                        if calibration.ssb_params is not None:
+                            phi += calibration.ssb_phase(freq, ch_index)
 
                     # Concatenate specified sinusoid to idata and qdata
                     ts = np.arange(0, cycles, 1) / self.fs_dac
                     y = np.sin(2*np.pi*freq*ts + (np.pi*phi)/180) / 2
 
                     if calibration is None:
-                        amp_i = y * amp * gain
+                        # gain
+                        amp_i = y * amp
                     elif calibration.abs_gain:
+                        # 2 * 
                         amp_i = 2 * y * calibration.gain(freq, ch_index)
                     else:
-                        amp_i = y * amp * gain * calibration.scale_gain(freq, ch_index)
+                        # gain 
+                        amp_i = y * amp * calibration.scale_gain(freq, ch_index)
                     
                     idata = np.concatenate((idata, -np.array(amp_i)))
                     qdata = np.concatenate((qdata, np.zeros(cycles, dtype=int)))

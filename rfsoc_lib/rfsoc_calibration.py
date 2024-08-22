@@ -71,6 +71,26 @@ class RfsocCalibration():
         if ch_index == 1:
             return default_phi
     
+    def ssb_phase(self, freq, ch_index):
+        default_phi = 0
+
+        if ch_index == 0:
+            # SSB calibration phase
+            if self.ssb_params is None:
+                ssb_phi = 0
+            else:
+                ssb_phis = dict(sorted(self.ssb_params["phases"].items()))
+                ssb_phi = self.interpolate_param(ssb_phis, freq) % 360
+            
+            # Sum phases
+            phi = ssb_phi % 360
+
+            return phi
+        
+        if ch_index == 1:
+            return default_phi
+
+    
     def scale_gain(self, freq, ch_index):
         """
         Scales DAC channel gains for optimal SSB.

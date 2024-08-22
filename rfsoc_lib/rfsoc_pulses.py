@@ -1,3 +1,5 @@
+# TODO: Allow gain up to 32566 when no arb
+
 import numpy as np
 
 class RfsocPulses():
@@ -60,6 +62,11 @@ class RfsocPulses():
                 if calibration is not None:
                     self.ch_cfg[ch]["calibrated"] = True
                     self.calibrated_pulses[ch] = {"gains":[], "phases":[]}
+
+                    if calibration.abs_gain:
+                        self.ch_cfg[ch]["abs_gain"] = True
+                    else:
+                        self.ch_cfg[ch]["abs_gain"] = False
                 else:
                     self.ch_cfg[ch]["calibrated"] = False
             
@@ -159,9 +166,11 @@ class RfsocPulses():
             if not isinstance(gain, (int, float)):
                 raise TypeError(f"{ch} gain '{gain}' is a {type(gain)}. Must be a float or int")
             
-            if (abs(gain) > 16383) and (any(not isinstance(item, tuple) for item in pulse_seqs[ch])):
-                raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 16383 (max when producing arb. pulses)")
-            elif abs(gain) > 32766:
+            # TODO: Remove?
+            # if (abs(gain) > 16383) and (any(not isinstance(item, tuple) for item in pulse_seqs[ch])):
+            #     raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 16383 (max when producing arb. pulses)")
+            # elif abs(gain) > 32766:
+            if abs(gain) > 32766:
                 raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 32766")
 
     def check_delays(self, delays):
@@ -313,7 +322,9 @@ class RfsocPulses():
         """
         self.pulses[ch]["times"].append(float(time/1e3))
         self.pulses[ch]["lengths"].append(float(params.total_length/1e3))
-        self.pulses[ch]["gains"].append(int(32766))
+        # self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"]))
+        # TODO: Custom gain
+        self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"]*2))
         self.pulses[ch]["outsels"].append(params.outsel)
         self.pulses[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
         self.pulses[ch]["styles"].append('arb')
@@ -323,7 +334,10 @@ class RfsocPulses():
 
         if self.ch_cfg[ch]["calibrated"]:
             self.calibrated_pulses[ch]["phases"].append(0.0)
-            self.calibrated_pulses[ch]["gains"].append(int(32766))
+            if self.ch_cfg[ch]["abs_gain"]:
+                self.calibrated_pulses[ch]["gains"].append(int(32566))
+            else:
+                self.calibrated_pulses[ch]["gains"].append(int(32566))
 
         self.iq_data[ch]["idata"].append(params.idata)
         self.iq_data[ch]["qdata"].append(params.qdata)
@@ -428,7 +442,8 @@ class RfsocPulses():
         """
         ch_cfg = self.ch_cfg[ch]
         pulses = self.pulses[ch]
-        calibrated_pulses = self.calibrated_pulses[ch]
+        if ch_cfg["calibrated"]:
+            calibrated_pulses = self.calibrated_pulses[ch]
 
         ch_index = ch_cfg["ch_index"]
 
@@ -473,11 +488,19 @@ class RfsocPulses():
                 outsel = pulses["outsels"][i]
                 # IQ data
                 arb_name = "arb" + str(i)
-                idata = self.iq_data[ch]["idata"][i] 
+                idata = self.iq_data[ch]["idata"][i]
                 qdata = self.iq_data[ch]["qdata"][i]
+                if not ch_cfg["calibrated"]:
+                    idata = np.array(idata) * gain
+                    qdata = np.array(qdata) * gain
+                elif ch_cfg["calibrated"] and (not ch_cfg["abs_gain"]):
+                    idata = np.array(idata) * gain
+                    qdata = np.array(qdata) * gain
                 # Program registers
                 prog.add_envelope(ch=ch_index, name=arb_name, idata=idata, qdata=qdata)
                 prog.set_pulse_registers(ch=ch_index, gain=gain, freq=freq, phase=phase, style="arb", waveform=arb_name, outsel=outsel)
+
+                # TODO: Add warning if IQ gain exceeds 32566
 
             # Play DAC pulse
             prog.pulse(ch=ch_index, t=time)
