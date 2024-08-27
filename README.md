@@ -2,9 +2,7 @@
 
 ## Useful Notebooks
 
-- Notebook `00_dac_phase_calibration.ipynb` is used to calibrate the phase offset between DACs.
-- Notebook `01_rfsoc_pulses_demo.ipynb` is a short demo notebook.
-- Notebook `02_rfsoc_limitations.ipynb` outlines the limitations of the RFSoC 4x2 board.
+Read through and run the indexed notebooks in the root directory to learn about the capabilities of the board and how to write programs for it.
 
 ## Getting Started
 
@@ -25,5 +23,3 @@ sudoedit /etc/network/interfaces.d/eth0
 ```
 
 - Change the host ID of the IP address in line 6 (ie. change '99' in `address 192.168.2.99`) to an ID that is not currently utilised.
-
-Note that frequency is fixed to first value for outsel='product'
