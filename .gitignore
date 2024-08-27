@@ -1,6 +1,8 @@
-__pycache__
-.venv/
+**/__pycache__/
 **/temp/
 **/.ipynb_checkpoints/
+
+/.venv/
+/Experiment_Notebook/
+
 pickles/const_power.pickle
-Experiment_Notebook/
