@@ -21,6 +21,10 @@ class RfsocPulses():
             Specify gain of DACs in arbitrary units [0, 32765], overriding DEFAULT_GAIN.
         delays : dict, optional
             Specify delays of channels for synchronisation (+ve int), overriding DEFAULT_DELAY.
+        const_power : dict, optional
+            Dictionary containing frequency-dependent amplitudes for a constant EOM voltage.
+        scale_power : float, optional
+            Scale the amplitude of all pulses for changing EOM voltage. Defaults to 1.
         print_params : bool, optional
             If True, print pulse parameters. Defaults to False.
         """
@@ -577,6 +581,21 @@ class RfsocPulses():
     
 
     def interpolate_dict(self, param_dict, freq):
+        """
+        Interpolate between frequencies for dictionary containing constant EOM voltage amplitudes.
+
+        Parameters
+        ----------
+        param_dict : dict
+            Dictionary containg frequency as key and pulse parameter as value.
+        freq : float
+            Frequency for which the pulse parameter should be interpolated.
+
+        Returns
+        -------
+        float
+            Interpolated pulse parameter.
+        """
         i = bisect.bisect_left(list(param_dict.keys()), freq)
         freq_above = list(param_dict.keys())[i]
         val_above = param_dict[list(param_dict.keys())[i]]

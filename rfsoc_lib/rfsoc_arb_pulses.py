@@ -26,6 +26,8 @@ class RfsocArbPulses():
             List of amplitudes to be sampled by the DAC in form [(i_sample_0, i_sample_1, ...), (q_sample_0, q_sample_1, ...)]
         outsel : str, optional
             DAC outsel mode. Use 'product' to provide IQ amplitude envelope and 'input' to produce arbitrary DAC samples. 'product' by default.
+        freq : float, optional
+            Specify the frequency of pulses for custom IQ data as the parser cannot infer this.
 
         Raises
         ------
