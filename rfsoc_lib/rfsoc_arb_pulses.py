@@ -10,7 +10,7 @@ import numpy as np
 import math
 
 class RfsocArbPulses():
-    def __init__(self, soccfg, sequence=None, samples=None, calibration=None, ch_index=None, outsel='product', freq=None):
+    def __init__(self, soccfg, sequence=None, samples=None, outsel='product', freq=None):
         """
         Constructor method.
         Initialise RfsocArbPulses object by creating IQ data samples for DAC.
@@ -24,10 +24,6 @@ class RfsocArbPulses():
             List of tuples providing pulse sequence parameters in form [(time, amp, freq, phase), ...].
         samples : list, optional
             List of amplitudes to be sampled by the DAC in form [(i_sample_0, i_sample_1, ...), (q_sample_0, q_sample_1, ...)]
-        calibration : object, optional
-            Multi-DAC IQ mixing calibration object.
-        ch_index : int, optional
-            DAC channel index (for obtaining calibrated amplitude and phase).
         outsel : str, optional
             DAC outsel mode. Use 'product' to provide IQ amplitude envelope and 'input' to produce arbitrary DAC samples. 'product' by default.
 
@@ -63,7 +59,7 @@ class RfsocArbPulses():
         elif (sequence is not None) and (samples is not None):
             raise ValueError("May not simultaneously specify a pulse sequence and DAC samples")
         elif sequence is not None:
-            idata, qdata = self.gen_sequence_iqdata(sequence, calibration, ch_index, outsel)
+            idata, qdata = self.gen_sequence_iqdata(sequence, outsel)
         elif samples is not None:
             idata, qdata = self.gen_samples_iqdata(samples, outsel)
 
@@ -85,7 +81,7 @@ class RfsocArbPulses():
         self.idata = idata
         self.qdata = qdata
     
-    def gen_sequence_iqdata(self, sequence, calibration, ch_index, outsel):
+    def gen_sequence_iqdata(self, sequence, outsel):
         """
         Generate IQ samples from a list of tuples.
 
@@ -93,10 +89,6 @@ class RfsocArbPulses():
         ----------
         sequence : list
             List of tuples containing pulse parameters.
-        calibration : object, optional
-            Multi-DAC IQ mixing calibration object.
-        ch_index : int, optional
-            DAC channel index (for obtaining calibrated amplitude and phase).
         outsel : str
             DAC outsel mode.
 
@@ -132,28 +124,16 @@ class RfsocArbPulses():
                 if outsel == 'product':
                     freq = self.freq * 1e3
                     # Calculate amp_i and amp_q from phase and gain
-                    if calibration is None:
-                        phi = params[3]
-                    else:
-                        phi = params[3] + calibration.phase(freq, ch_index)
+                    phi = params[3]
 
                     dac_iq = np.round(np.e**(1j * phi * np.pi / 180), 10)
                     dac_i, dac_q = np.real(dac_iq), np.imag(dac_iq)
 
-                    if calibration is None:
-                        # gain
-                        amp_i = amp * dac_i
-                        amp_q = amp * dac_q
-                    elif calibration.abs_gain:
-                        # 2 * 
-                        amp_i = 2 * dac_i * calibration.gain(freq, ch_index)
-                        amp_q = 2 * dac_q * calibration.gain(freq, ch_index)
-                    else:
-                        # gain
-                        amp_i = amp * dac_i * calibration.scale_gain(freq, ch_index)
-                        amp_q = amp * dac_q * calibration.scale_gain(freq, ch_index)
+                    # gain
+                    amp_i = amp * dac_i * 32566
+                    amp_q = amp * dac_q * 32566
 
-                    if (params[2] != self.freq) and (calibration is not None):
+                    if (params[2] != self.freq):
                         raise ValueError(f"Cannot specify frequency {params[2]} GHz as frequency is fixed to that of first pulse ({self.freq} GHz)")
 
                     # Concatenate appropriate number of amp_i and amp_q to idata and qdata
@@ -164,23 +144,11 @@ class RfsocArbPulses():
                     freq = params[2] * 1e3
                     phi = params[3]
 
-                    if calibration is not None:
-                        if calibration.ssb_params is not None:
-                            phi += calibration.ssb_phase(freq, ch_index)
-
                     # Concatenate specified sinusoid to idata and qdata
                     ts = np.arange(0, cycles, 1) / self.fs_dac
                     y = np.sin(2*np.pi*freq*ts + (np.pi*phi)/180) / 2
 
-                    if calibration is None:
-                        # gain
-                        amp_i = y * amp
-                    elif calibration.abs_gain:
-                        # 2 * 
-                        amp_i = 2 * y * calibration.gain(freq, ch_index)
-                    else:
-                        # gain 
-                        amp_i = y * amp * calibration.scale_gain(freq, ch_index)
+                    amp_i = y * amp * 32566
                     
                     idata = np.concatenate((idata, -np.array(amp_i)))
                     qdata = np.concatenate((qdata, np.zeros(cycles, dtype=int)))
