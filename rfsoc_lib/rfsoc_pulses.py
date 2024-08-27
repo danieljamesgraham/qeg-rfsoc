@@ -1,5 +1,3 @@
-# TODO: Allow gain up to 32566 when no arb
-
 import numpy as np
 import bisect
 
@@ -155,13 +153,6 @@ class RfsocPulses():
         for ch, gain in gains.items():
             if not isinstance(gain, (int, float)):
                 raise TypeError(f"{ch} gain '{gain}' is a {type(gain)}. Must be a float or int")
-            
-            # TODO: Remove?
-            if (abs(gain) > 16383) and (any(not isinstance(item, tuple) for item in pulse_seqs[ch])):
-                raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 16383 (max when producing arb. pulses)")
-            elif abs(gain) > 32766:
-            # if abs(gain) > 32766:
-                raise ValueError(f"{ch} gain magnitude '{abs(gain)}' greater than 32766")
 
     def check_delays(self, delays):
         """
@@ -301,7 +292,6 @@ class RfsocPulses():
         self.pulses[ch]["times"].append(float(time/1e3))
         self.pulses[ch]["lengths"].append(float(params.total_length/1e3))
         # self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"]))
-        # TODO: Custom gain
         if self.const_power is None:
             self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"]*2))
         else:
@@ -452,8 +442,6 @@ class RfsocPulses():
                 # Program registers
                 prog.add_envelope(ch=ch_index, name=arb_name, idata=idata, qdata=qdata)
                 prog.set_pulse_registers(ch=ch_index, gain=gain, freq=freq, phase=phase, style="arb", waveform=arb_name, outsel=outsel)
-
-                # TODO: Add warning if IQ gain exceeds 32566
 
             # Play DAC pulse
             prog.pulse(ch=ch_index, t=time)

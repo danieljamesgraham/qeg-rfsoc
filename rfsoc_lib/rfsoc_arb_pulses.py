@@ -1,11 +1,3 @@
-# raise ValueError("Must specify frequency as an argument")
-# print("WARNING: frequency has been specified as an argument but is ignored for outsel='input' pulses")
-# raise TypeError(f"Outsel {outsel} must be 'product' or 'input'")
-
-# TODO: Const. power renormalisation
-# TODO: Default gain
-# TODO: Null at end not recognised
-
 import numpy as np
 import math
 
@@ -41,19 +33,30 @@ class RfsocArbPulses():
         self.outsel = outsel
         self.fs_dac = soccfg['gens'][0]['fs'] # 9830.4 MHz
 
+        if self.outsel not in ['product', 'input']:
+            raise TypeError(f"Outsel {outsel} must be 'product' or 'input'")
+
         # Assign frequency
         if (sequence is not None) and (outsel == 'product'):
             i = 0
             while True:
                 try:
                     self.freq = sequence[i][2] # Frequency is fixed at the first value
+                    print("NOTE: frequency of outsel='product' arb. sequence is fixed to that of first pulse (DDS limitation)")
                     break
                 except IndexError:
                     i += 1
+                if freq is not None:
+                    print("WARNING: frequency has been specified as an argument but is ignored for outsel='product' sequences")
         elif (samples is not None) and (outsel == 'product'):
-            self.freq = freq
+            if freq is not None:
+                self.freq = freq
+            else:
+                raise ValueError("Must specify frequency as an argument to configure DDS for arb. samples")
         else:
             self.freq = 0
+            if freq is not None:
+                print("WARNING: frequency has been specified as an argument but is ignored for outsel='input' samples")
 
         # Generate IQ data
         if (sequence is None) and (samples is None):
