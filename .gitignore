@@ -1,4 +1,6 @@
-.venv/
 __pycache__
-pickles/calibrate_phase.pickle
-temp/
+.venv/
+**/temp/
+**/.ipynb_checkpoints/
+pickles/const_power.pickle
+Experiment_Notebook/
