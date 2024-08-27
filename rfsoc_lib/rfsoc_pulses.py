@@ -263,8 +263,8 @@ class RfsocPulses():
                     self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"] * self.pulses[ch]["amps"][-1]))
                 else:
                     self.pulses[ch]["gains"].append(int(self.scale_power * self.interpolate_dict(self.const_power, freq) * self.pulses[ch]["amps"][-1]))
-                if self.pulses[ch]["gains"][-1] > 32566:
-                    raise ValueError(f"Pulse gain is {self.pulses[ch]['gains'][-1]} but should not exceed 32566")
+                if self.pulses[ch]["gains"][-1] > 32766:
+                    raise ValueError(f"Pulse gain is {self.pulses[ch]['gains'][-1]} but should not exceed 32766")
                 self.pulses[ch]["freqs"].append(freq) # DAC frequency [Hz]
                 self.pulses[ch]["styles"].append('const')
 
@@ -296,8 +296,8 @@ class RfsocPulses():
             self.pulses[ch]["gains"].append(int(self.ch_cfg[ch]["gain"]*2))
         else:
             self.pulses[ch]["gains"].append(int(self.scale_power * self.interpolate_dict(self.const_power, params.freq*1e3)*2))
-        if self.pulses[ch]["gains"][-1] > 32566:
-            raise ValueError(f"Arb. pulse gain is {self.pulses[ch]['gains'][-1]} but should not exceed 32566")
+        if self.pulses[ch]["gains"][-1] > 32766:
+            raise ValueError(f"Arb. pulse gain is {self.pulses[ch]['gains'][-1]} but should not exceed 32766")
         self.pulses[ch]["outsels"].append(params.outsel)
         self.pulses[ch]["freqs"].append(np.round(float(params.freq*1e3), 6))
         self.pulses[ch]["styles"].append('arb')

@@ -42,7 +42,6 @@ class RfsocArbPulses():
             while True:
                 try:
                     self.freq = sequence[i][2] # Frequency is fixed at the first value
-                    print("NOTE: frequency of outsel='product' arb. sequence is fixed to that of first pulse (DDS limitation)")
                     break
                 except IndexError:
                     i += 1

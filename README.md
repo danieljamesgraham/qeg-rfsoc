@@ -25,3 +25,5 @@ sudoedit /etc/network/interfaces.d/eth0
 ```
 
 - Change the host ID of the IP address in line 6 (ie. change '99' in `address 192.168.2.99`) to an ID that is not currently utilised.
+
+Note that frequency is fixed to first value for outsel='product'
