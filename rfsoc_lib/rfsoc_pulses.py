@@ -528,14 +528,17 @@ class RfsocPulses():
         """
         if prog.binprog is None:
             prog.compile()
-
-        soc.start_src("internal")
-        soc.stop_tproc(lazy=not reset)
-
-        if load_pulses:
-            prog.load_pulses(soc)
-        prog.config_gens(soc)
-        prog.config_readouts(soc)
+        try:
+            prog.run(soc,  load_prog=True, load_envelopes=True, start_src='internal')
+        except Exception as ep:
+            print (ep)
+            soc.start_src("internal")
+            soc.stop_tproc(lazy=not reset)
+    
+            if load_pulses:
+                prog.load_pulses(soc)
+            prog.config_gens(soc)
+            prog.config_readouts(soc)
 
         soc.load_bin_program(prog.binprog)
 
@@ -557,13 +560,18 @@ class RfsocPulses():
         if prog.binprog is None:
             prog.compile()
 
-        soc.start_src("external")
-        soc.stop_tproc(lazy=not reset)
-
-        if load_pulses:
-            prog.load_pulses(soc)
-        prog.config_gens(soc)
-        prog.config_readouts(soc)
+        try:
+            prog.run(soc,  load_prog=True, load_envelopes=True, start_src='external')
+        except Exception as ep:
+            print (ep)
+            soc.start_src("external")
+            soc.stop_tproc(lazy=not reset)
+    
+            if load_pulses:
+                prog.load_pulses(soc)
+            
+            prog.config_gens(soc)
+            prog.config_readouts(soc)
 
         soc.load_bin_program(prog.binprog)
     
