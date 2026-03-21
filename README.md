@@ -23,3 +23,10 @@ sudoedit /etc/network/interfaces.d/eth0
 ```
 
 - Change the host ID of the IP address in line 6 (ie. change '99' in `address 192.168.2.99`) to an ID that is not currently utilised.
+
+## Potential issue and quick fix to pulse generation with qick 0.2.394 (and above).
+- Changes to the rfsoc_lib/rfsoc_pulses.py to accomodate for pulse generation errors with the line "prog.load_pulses(soc)", where one gets the following error: "AttributeError: 'QickProgram' object has no attribute 'load_pulses'".
+- The solution is to run the following line, which replaces the next few lines in initializing the ADC and DAC channels, along with the start source.
+```
+prog.run(soc,  load_prog=True, load_envelopes=True, start_src='internal') // prog.run(soc,  load_prog=True, load_envelopes=True, start_src='external')
+```
