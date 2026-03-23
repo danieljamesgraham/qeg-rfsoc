@@ -30,3 +30,14 @@ sudoedit /etc/network/interfaces.d/eth0
 ```
 prog.run(soc,  load_prog=True, load_envelopes=True, start_src='internal') // prog.run(soc,  load_prog=True, load_envelopes=True, start_src='external')
 ```
+
+## Using tProcV2 (default is still tProcV1 in March 2026)
+- Transfer the files 'https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-12-09_4x2_tprocv2r27_standard/' onto the RFSoc directory /home/xilinx/jupyter_notebooks/.
+- Create a folder fw and move the 2025-12-09_4x2_tprocv2r27_standard folder there.
+- Specify the bitfile in the start_server or QickSoc command.
+'''
+start_server(ns_host="localhost", ns_port=8888, proxy_name="myqick",
+            bitfile='/home/xilinx/jupyter_notebooks/fw/2025-12-09_4x2_tprocv2r27_standard/qick_4x2.bit')
+'''
+- Now you have tProcV2.
+
